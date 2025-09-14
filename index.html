@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pitch Detection with Yin</title>
+  <title>Web Tuner</title>
   <style>
     body {
       background: #111;
@@ -10,18 +10,27 @@
       font-family: sans-serif;
       text-align: center;
     }
+    #noteDisplay {
+      font-size: 3em;
+      margin: 10px 0;
+    }
+    #pitchDisplay {
+      font-size: 1.5em;
+      margin: 5px 0 20px;
+    }
     canvas {
       display: block;
       margin: 10px auto;
       background: #222;
     }
-    #pitchDisplay {
-      font-size: 1.5em;
-      margin: 10px 0;
+    #centsCanvas {
+      width: 600px;
+      height: 200px;
     }
-    #noteDisplay {
-      font-size: 2em;
-      margin: 10px 0;
+    #oscilloscope {
+      width: 600px;
+      height: 100px;
+      display: none; /* hidden initially */
     }
     #controls {
       margin: 20px;
@@ -35,13 +44,13 @@
   </style>
 </head>
 <body>
-  <h1>Pitch Detection with Yin</h1>
+  <h1>Web Tuner</h1>
   <div id="noteDisplay">--</div>
   <div id="pitchDisplay">-- Hz</div>
-  <canvas id="centsCanvas" width="600" height="200"></canvas>
-  <canvas id="oscilloscope" width="600" height="100" style="display: none;"></canvas>
 
-  <!-- Controls -->
+  <canvas id="centsCanvas" width="600" height="200"></canvas>
+  <canvas id="oscilloscope" width="600" height="100"></canvas>
+
   <div id="controls">
     <label>
       <input type="checkbox" id="toggleCentsText"> Show difference in cents (text)
@@ -55,6 +64,7 @@
   </div>
 
   <script>
+    // === Audio setup ===
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
@@ -72,7 +82,6 @@
 
     const toggleCentsText = document.getElementById("toggleCentsText");
     const toggleCentsGraph = document.getElementById("toggleCentsGraph");
-
     const toggleWaveform = document.getElementById("toggleWaveform");
 
     toggleWaveform.addEventListener("change", () => {
@@ -82,47 +91,41 @@
     navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
-      draw();
-      setInterval(updatePitchAndNote, 100); // update note name + cents every 100ms
+      drawWaveform();
+      setInterval(updatePitchAndNote, 100); // update every 100ms
     });
 
     // === Oscilloscope waveform ===
-    function draw() {
-      requestAnimationFrame(draw);
+    function drawWaveform() {
+      requestAnimationFrame(drawWaveform);
       analyser.getFloatTimeDomainData(dataArray);
 
-      oCtx.fillStyle = "rgb(34, 34, 34)";
+      oCtx.fillStyle = "#222";
       oCtx.fillRect(0, 0, oscilloscope.width, oscilloscope.height);
 
       oCtx.lineWidth = 2;
-      oCtx.strokeStyle = "rgb(0, 200, 0)";
+      oCtx.strokeStyle = "#0f0";
       oCtx.beginPath();
 
-      const sliceWidth = oscilloscope.width * 1.0 / bufferLength;
+      const sliceWidth = oscilloscope.width / bufferLength;
       let x = 0;
 
       for (let i = 0; i < bufferLength; i++) {
         const v = dataArray[i] * 0.5 + 0.5;
         const y = v * oscilloscope.height;
-
-        if (i === 0) {
-          oCtx.moveTo(x, y);
-        } else {
-          oCtx.lineTo(x, y);
-        }
+        if (i === 0) oCtx.moveTo(x, y);
+        else oCtx.lineTo(x, y);
         x += sliceWidth;
       }
 
-      oCtx.lineTo(oscilloscope.width, oscilloscope.height / 2);
       oCtx.stroke();
     }
 
-    // === Pitch detection with Yin ===
+    // === Yin pitch detection ===
     function yinPitch(float32AudioBuffer, sampleRate) {
       const threshold = 0.1;
       const bufferSize = float32AudioBuffer.length;
       const yinBuffer = new Float32Array(bufferSize / 2);
-
       let tau, delta, runningSum, j;
       for (tau = 1; tau < yinBuffer.length; tau++) {
         runningSum = 0;
@@ -132,41 +135,32 @@
         }
         yinBuffer[tau] = runningSum;
       }
-
       runningSum = 0;
       yinBuffer[0] = 1;
       for (tau = 1; tau < yinBuffer.length; tau++) {
         runningSum += yinBuffer[tau];
         yinBuffer[tau] *= tau / runningSum;
       }
-
       let tauEstimate = -1;
       for (tau = 2; tau < yinBuffer.length; tau++) {
         if (yinBuffer[tau] < threshold) {
-          while (tau + 1 < yinBuffer.length && yinBuffer[tau + 1] < yinBuffer[tau]) {
-            tau++;
-          }
+          while (tau + 1 < yinBuffer.length && yinBuffer[tau + 1] < yinBuffer[tau]) tau++;
           tauEstimate = tau;
           break;
         }
       }
-
       if (tauEstimate === -1) return null;
-
       let betterTau, x0, x1, x2;
       if (tauEstimate > 0 && tauEstimate < yinBuffer.length - 1) {
         x0 = yinBuffer[tauEstimate - 1];
         x1 = yinBuffer[tauEstimate];
         x2 = yinBuffer[tauEstimate + 1];
         betterTau = tauEstimate + (x2 - x0) / (2 * (2 * x1 - x2 - x0));
-      } else {
-        betterTau = tauEstimate;
-      }
-
+      } else betterTau = tauEstimate;
       return sampleRate / betterTau;
     }
 
-    // === Note and cents calculation ===
+    // === Note + cents calculation ===
     function frequencyToNoteWithCents(frequency) {
       const A4 = 440;
       const noteNumber = 12 * (Math.log2(frequency / A4)) + 69;
@@ -189,14 +183,10 @@
         pitchDisplay.textContent = pitch.toFixed(2) + ' Hz';
         const { noteWithOctave, cents } = frequencyToNoteWithCents(pitch);
 
-        // Text control
-        if (toggleCentsText.checked) {
-          noteDisplay.textContent = `${noteWithOctave} (${cents.toFixed(2)} cents)`;
-        } else {
-          noteDisplay.textContent = noteWithOctave;
-        }
+        noteDisplay.textContent = toggleCentsText.checked
+          ? `${noteWithOctave} (${cents.toFixed(2)} cents)`
+          : noteWithOctave;
 
-        // Graph control
         drawCentsIndicator(toggleCentsGraph.checked ? cents : null);
       } else {
         pitchDisplay.textContent = '-- Hz';
@@ -205,7 +195,7 @@
       }
     }
 
-    // === Draw cents indicator ===
+    // === Cents graph ===
     function drawCentsIndicator(cents) {
       if (!toggleCentsGraph.checked) {
         centsCanvas.style.display = "none";
@@ -218,63 +208,59 @@
       const h = centsCanvas.height;
       cCtx.clearRect(0, 0, w, h);
 
-      // --- Draw background bands ---
+      // Background bands
       function drawBand(limitCents, color) {
         const x1 = w/2 + (-limitCents / 50) * (w/2);
         const x2 = w/2 + (limitCents / 50) * (w/2);
         cCtx.fillStyle = color;
         cCtx.fillRect(x1, 0, x2 - x1, h);
       }
-      drawBand(50, "#331111"); // Red outer
-      drawBand(15, "#333311"); // Yellow middle
-      drawBand(5,  "#113311"); // Green center
+      drawBand(50, "#331111"); // red
+      drawBand(15, "#333311"); // yellow
+      drawBand(5, "#113311");  // green
 
-      // --- Draw center line ---
+      // Center line
       cCtx.strokeStyle = "#888";
       cCtx.beginPath();
       cCtx.moveTo(w/2, 0);
       cCtx.lineTo(w/2, h);
       cCtx.stroke();
 
-      // --- Draw tick marks only for band edges and center ---
+      // Tick marks at band edges
       const tickPositions = [-50, -15, -5, 0, 5, 15, 50];
       tickPositions.forEach(cent => {
-        let x = w/2 + (cent / 50) * (w/2);
-
-        // Keep labels inside canvas
-        const labelOffset = 12; // half approximate width of text
-        if (x - labelOffset < 0) x = labelOffset;
-        if (x + labelOffset > w) x = w - labelOffset;
+        const xTick = w/2 + (cent / 50) * (w/2);
+        // Keep text inside canvas
+        const labelOffset = 12;
+        const x = Math.min(Math.max(xTick, labelOffset), w - labelOffset);
 
         // Tick line
         cCtx.strokeStyle = "#aaa";
         cCtx.beginPath();
-        cCtx.moveTo(w/2 + (cent / 50) * (w/2), h - 10);
-        cCtx.lineTo(w/2 + (cent / 50) * (w/2), h);
+        cCtx.moveTo(xTick, h - 10);
+        cCtx.lineTo(xTick, h);
         cCtx.stroke();
 
         // Tick label color
         let color;
-        if (Math.abs(cent) <= 5) color = "#0f0";        // Green band
-        else if (Math.abs(cent) <= 15) color = "#ff0";  // Yellow band
-        else color = "#f00";                             // Red band
+        if (Math.abs(cent) <= 5) color = "#0f0";
+        else if (Math.abs(cent) <= 15) color = "#ff0";
+        else color = "#f00";
 
         cCtx.fillStyle = color;
         cCtx.font = "12px sans-serif";
         cCtx.fillText(cent > 0 ? `+${cent}c` : `${cent}c`, x - labelOffset, h - 15);
       });
 
-      // --- Draw current cents needle ---
+      // Needle
       if (cents === null) return;
-
       const clamped = Math.max(-50, Math.min(50, cents));
-      const x = w/2 + (clamped / 50) * (w/2);
-
+      const xNeedle = w/2 + (clamped / 50) * (w/2);
       cCtx.strokeStyle = "red";
       cCtx.lineWidth = 3;
       cCtx.beginPath();
-      cCtx.moveTo(x, 0);
-      cCtx.lineTo(x, h);
+      cCtx.moveTo(xNeedle, 0);
+      cCtx.lineTo(xNeedle, h);
       cCtx.stroke();
     }
   </script>

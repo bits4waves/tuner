@@ -39,7 +39,7 @@
   <div id="noteDisplay">--</div>
   <div id="pitchDisplay">-- Hz</div>
   <canvas id="centsCanvas" width="600" height="200"></canvas>
-  <canvas id="oscilloscope" width="600" height="200"></canvas>
+  <canvas id="oscilloscope" width="600" height="100" style="display: none;"></canvas>
 
   <!-- Controls -->
   <div id="controls">
@@ -72,6 +72,12 @@
 
     const toggleCentsText = document.getElementById("toggleCentsText");
     const toggleCentsGraph = document.getElementById("toggleCentsGraph");
+
+    const toggleWaveform = document.getElementById("toggleWaveform");
+
+    toggleWaveform.addEventListener("change", () => {
+      oscilloscope.style.display = toggleWaveform.checked ? "block" : "none";
+    });
 
     navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
       const source = audioCtx.createMediaStreamSource(stream);

@@ -4,317 +4,203 @@
 <meta charset="UTF-8">
 <title>Tuner</title>
 <style>
-  body { font-family: sans-serif; text-align: center; background: #111; color: #eee; }
-  canvas { background: #000; display: block; margin: 10px auto; }
-  label { display: block; margin: 5px; }
-  #controls { margin-top: 20px; }
-
-  /* LED indicator */
-  #mode-indicator { margin: 10px 0; font-size: 14px; display: flex; align-items: center; justify-content:center;}
-  .led {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    margin-right: 6px;
-    border-radius: 50%;
-    background-color: #222;
-    box-shadow: inset -1px -1px 3px rgba(0,0,0,0.8),
-                inset 1px 1px 3px rgba(255,255,255,0.1);
-    position: relative;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-  }
-  .led.on {
-    background-color: red;
-    box-shadow: 0 0 8px rgba(255,0,0,0.8),
-                0 0 14px rgba(255,0,0,0.6),
-                inset -1px -1px 3px rgba(0,0,0,0.6),
-                inset 1px 1px 4px rgba(255,255,255,0.5);
-    transition: background-color 0.6s ease, box-shadow 0.6s ease;
-  }
-  .led::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 60%;
-    height: 40%;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.4);
-    filter: blur(1px);
-    pointer-events: none;
-  }
-  .label { user-select: none; }
-
-  /* Sliders layout */
-  #oscilloscopeControls { text-align:left; width:600px; margin:10px auto; }
+  body { background:black; color:white; font-family:sans-serif; }
+  canvas { display:block; margin:10px 0; background:#111; }
+  label { display:block; margin-top:10px; }
 </style>
 </head>
 <body>
-<h1>Tuner</h1>
 
-<div id="pitchInfo">
-  <h2><span id="noteName">--</span> <span id="centsText">(0¢)</span></h2>
+<h1>Microphone Tuner</h1>
+
+<!-- Display elements -->
+<div>
+  <span id="noteName">--</span>
+  <span id="centsText">(0¢)</span>
 </div>
 
-<canvas id="centsCanvas" width="600" height="100"></canvas>
-<canvas id="oscilloscope" width="600" height="100" style="display:none;"></canvas>
+<!-- Checkboxes -->
+<label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
+<label><input type="checkbox" id="showCentsText" checked> Show Cents Text</label>
+<label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
 
-<!-- LED indicator -->
-<div id="mode-indicator">
-  <span class="led" id="autoLed"></span>
-  <span class="label">Auto</span>
-</div>
+<!-- Canvases -->
+<canvas id="centsCanvas" width="500" height="50"></canvas>
+<canvas id="waveformCanvas" width="500" height="100"></canvas>
 
-<div id="controls">
-  <label><input type="checkbox" id="toggleCents" checked> Show cents graph</label>
-  <label><input type="checkbox" id="toggleOscilloscope"> Show oscilloscope</label>
+<!-- Sliders -->
+<label>Pitch Smoothing: <span id="pitchAlphaValue">0.3</span></label>
+<input type="range" id="pitchAlphaSlider" min="0.1" max="1" step="0.05" value="0.3">
 
-  <div id="oscilloscopeControls" style="display:none;">
-    <label><input type="checkbox" id="manualToggle"> Manual cycles mode</label>
-    <label>Cycles to display: <input type="range" id="cycleSlider" min="1" max="10" step="1" value="5"> <span id="cycleValue">5</span></label>
-    <label>Cycles to average: <input type="range" id="averageSlider" min="1" max="10" step="1" value="3"> <span id="averageValue">3</span></label>
-  </div>
-</div>
+<label>Cents Smoothing: <span id="centsAlphaValue">0.3</span></label>
+<input type="range" id="centsAlphaSlider" min="0.1" max="1" step="0.05" value="0.3">
 
 <script>
-/* --- Helper functions for notes and cents --- */
-const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-function noteFromPitch(freq) { return Math.round(12 * (Math.log2(freq / 440)) + 57); }
-function frequencyFromNoteNumber(note) { return 440 * Math.pow(2, (note - 57) / 12); }
-function centsOffFromPitch(freq, note) { return 1200 * Math.log2(freq / frequencyFromNoteNumber(note)); }
+// ---- Canvas setup ----
+const waveCanvas = document.getElementById('waveformCanvas');
+const waveCtx = waveCanvas.getContext('2d');
+const centsCanvas = document.getElementById('centsCanvas');
+const centsCtx = centsCanvas.getContext('2d');
 
-/* --- DOM elements --- */
-const noteElem = document.getElementById("noteName");
-const centsText = document.getElementById("centsText");
-const centsCanvas = document.getElementById("centsCanvas");
-const cCtx = centsCanvas.getContext("2d");
+const noteElem = document.getElementById('noteName');
+const centsText = document.getElementById('centsText');
 
-const oscilloscope = document.getElementById("oscilloscope");
-const oCtx = oscilloscope.getContext("2d");
+const showWaveform = document.getElementById('showWaveform');
+const showCentsText = document.getElementById('showCentsText');
+const showCentsGraph = document.getElementById('showCentsGraph');
 
-const toggleCents = document.getElementById("toggleCents");
-const toggleOscilloscope = document.getElementById("toggleOscilloscope");
-const oscilloscopeControls = document.getElementById("oscilloscopeControls");
-const manualToggle = document.getElementById("manualToggle");
-const cycleSlider = document.getElementById("cycleSlider");
-const cycleValue = document.getElementById("cycleValue");
-const averageSlider = document.getElementById("averageSlider");
-const averageValue = document.getElementById("averageValue");
-const autoLed = document.getElementById("autoLed");
+// ---- EMA variables ----
+let pitchAlpha = parseFloat(document.getElementById("pitchAlphaSlider").value);
+let centsAlpha = parseFloat(document.getElementById("centsAlphaSlider").value);
+let smoothedPitch = 0;
+let smoothedCents = 0;
 
-let cyclesToDisplay = parseInt(cycleSlider.value);
-let cyclesToAverage = parseInt(averageSlider.value);
+// ---- Note names ----
+const noteStrings = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
-/* --- LED Indicator --- */
-function updateModeIndicator() {
-  if (manualToggle.checked) autoLed.classList.remove("on");
-  else autoLed.classList.add("on");
-}
-updateModeIndicator();
-manualToggle.addEventListener("change", updateModeIndicator);
-
-/* --- Sliders --- */
-cycleSlider.addEventListener("input", () => {
-  if (!manualToggle.checked) manualToggle.checked = true;
-  cyclesToDisplay = parseInt(cycleSlider.value);
-  cycleValue.textContent = cyclesToDisplay;
-  updateModeIndicator();
+// ---- Slider events ----
+document.getElementById("pitchAlphaSlider").addEventListener("input", e => {
+  pitchAlpha = parseFloat(e.target.value);
+  document.getElementById("pitchAlphaValue").textContent = pitchAlpha.toFixed(2);
 });
-averageSlider.addEventListener("input", () => {
-  if (!manualToggle.checked) manualToggle.checked = true;
-  cyclesToAverage = parseInt(averageSlider.value);
-  averageValue.textContent = cyclesToAverage;
-  updateModeIndicator();
+document.getElementById("centsAlphaSlider").addEventListener("input", e => {
+  centsAlpha = parseFloat(e.target.value);
+  document.getElementById("centsAlphaValue").textContent = centsAlpha.toFixed(2);
 });
 
-/* --- Toggles --- */
-toggleCents.addEventListener("change", () => { centsCanvas.style.display = toggleCents.checked ? "block" : "none"; });
-toggleOscilloscope.addEventListener("change", () => {
-  oscilloscope.style.display = toggleOscilloscope.checked ? "block" : "none";
-  oscilloscopeControls.style.display = toggleOscilloscope.checked ? "block" : "none";
-});
+// ---- Yin pitch detection (with sub-sample interpolation) ----
+function yinDetector(buf, sampleRate) {
+  const threshold = 0.1;
+  const maxLag = Math.floor(buf.length/2);
+  const yinBuffer = new Float32Array(maxLag);
+  let minTau = -1;
 
-/* --- Cents graph --- */
-function drawCents(cents) {
-  cCtx.clearRect(0,0,centsCanvas.width,centsCanvas.height);
-  const w = centsCanvas.width, h = centsCanvas.height;
+  for (let tau=1; tau<maxLag; tau++){
+    let sum=0;
+    for (let i=0; i<maxLag; i++){
+      const delta = buf[i]-buf[i+tau];
+      sum += delta*delta;
+    }
+    yinBuffer[tau]=sum;
+  }
+  yinBuffer[0]=1;
 
-  // Band widths
-  const centerBand = 5; // ±5¢
-  const nearBand = 25;  // ±25¢
-  const scale = w/2/50; // pixels per cent
-
-  // Compute pixel positions
-  const leftFar = 0;
-  const leftNear = w/2 - nearBand*scale;
-  const centerLeft = w/2 - centerBand*scale;
-  const centerRight = w/2 + centerBand*scale;
-  const rightNear = w/2 + nearBand*scale;
-  const rightFar = w;
-
-  // Determine highlighted band
-  let highlightColor = "#fff"; // brighter white for highlight
-  let highlightXStart, highlightWidth;
-  if (cents >= -centerBand && cents <= centerBand) {
-    highlightXStart = centerLeft;
-    highlightWidth = centerRight - centerLeft;
-  } else if (cents > centerBand && cents <= nearBand) {
-    highlightXStart = centerRight;
-    highlightWidth = rightNear - centerRight;
-  } else if (cents < -centerBand && cents >= -nearBand) {
-    highlightXStart = leftNear;
-    highlightWidth = centerLeft - leftNear;
-  } else if (cents > nearBand) {
-    highlightXStart = rightNear;
-    highlightWidth = rightFar - rightNear;
-  } else { // cents < -nearBand
-    highlightXStart = leftFar;
-    highlightWidth = leftNear - leftFar;
+  let runningSum=0;
+  for (let tau=1; tau<maxLag; tau++){
+    runningSum += yinBuffer[tau];
+    yinBuffer[tau] *= tau/runningSum;
   }
 
-  // Draw far bands
-  cCtx.fillStyle = "#444"; // light gray
-  cCtx.fillRect(leftFar,0,leftNear-leftFar,h); // left far
-  cCtx.fillRect(rightNear,0,rightFar-rightNear,h); // right far
+  for (let tau=2; tau<maxLag; tau++){
+    if(yinBuffer[tau]<threshold){
+      while(tau+1<maxLag && yinBuffer[tau+1]<yinBuffer[tau]) tau++;
+      minTau = tau;
+      break;
+    }
+  }
+  if(minTau==-1) return -1;
 
-  // Draw near bands
-  cCtx.fillStyle = "#666"; // medium gray
-  cCtx.fillRect(leftNear,0,centerLeft-leftNear,h); // left near
-  cCtx.fillRect(centerRight,0,rightNear-centerRight,h); // right near
+  if(minTau>0 && minTau<maxLag-1){
+    const y0=yinBuffer[minTau-1], y1=yinBuffer[minTau], y2=yinBuffer[minTau+1];
+    const delta = (y0 - y2)/(2*(y0 - 2*y1 + y2));
+    return sampleRate/(minTau + delta);
+  }
+  return sampleRate/minTau;
+}
 
-  // Draw center band
-  cCtx.fillStyle = "#888"; // dark gray
-  cCtx.fillRect(centerLeft,0,centerRight-centerLeft,h);
+// ---- Note / cents conversion ----
+function noteFromPitch(f) { return Math.round(12*Math.log2(f/440))+69; }
+function centsOffFromPitch(f,note){ return 1200*Math.log2(f/(440*Math.pow(2,(note-69)/12))); }
 
-  // Highlight current band
-  cCtx.fillStyle = highlightColor;
-  cCtx.globalAlpha = 0.2; // semi-transparent highlight
-  cCtx.fillRect(highlightXStart,0,highlightWidth,h);
-  cCtx.globalAlpha = 1.0;
+// ---- Draw waveform ----
+function drawWaveform(data){
+  if(!showWaveform.checked) return;
+  const w=waveCanvas.width, h=waveCanvas.height;
+  waveCtx.clearRect(0,0,w,h);
+  waveCtx.strokeStyle="#fff"; waveCtx.beginPath();
+  for(let i=0;i<data.length;i++){
+    const y=(0.5-data[i]/2)*h;
+    const x=i*w/data.length;
+    if(i===0) waveCtx.moveTo(x,y); else waveCtx.lineTo(x,y);
+  }
+  waveCtx.stroke();
+}
+
+// ---- Draw cents graph ----
+function drawCents(cents){
+  if(!showCentsGraph.checked) return;
+  const w=centsCanvas.width, h=centsCanvas.height;
+  centsCtx.clearRect(0,0,w,h);
+
+  const centerBand=5, nearBand=25, scale=w/2/50;
+  const leftFar=0, leftNear=w/2-nearBand*scale, centerLeft=w/2-centerBand*scale;
+  const centerRight=w/2+centerBand*scale, rightNear=w/2+nearBand*scale, rightFar=w;
+
+  // Highlight band
+  let highlightXStart, highlightWidth;
+  if(cents>=-centerBand && cents<=centerBand){highlightXStart=centerLeft;highlightWidth=centerRight-centerLeft;}
+  else if(cents>centerBand && cents<=nearBand){highlightXStart=centerRight;highlightWidth=rightNear-centerRight;}
+  else if(cents<-centerBand && cents>=-nearBand){highlightXStart=leftNear;highlightWidth=centerLeft-leftNear;}
+  else if(cents>nearBand){highlightXStart=rightNear;highlightWidth=rightFar-rightNear;}
+  else {highlightXStart=leftFar;highlightWidth=leftNear-leftFar;}
+
+  // Draw bands
+  centsCtx.fillStyle="#444"; centsCtx.fillRect(leftFar,0,leftNear-leftFar,h); centsCtx.fillRect(rightNear,0,rightFar-rightNear,h);
+  centsCtx.fillStyle="#666"; centsCtx.fillRect(leftNear,0,centerLeft-leftNear,h); centsCtx.fillRect(centerRight,0,rightNear-centerRight,h);
+  centsCtx.fillStyle="#888"; centsCtx.fillRect(centerLeft,0,centerRight-centerLeft,h);
+
+  // Highlight
+  centsCtx.fillStyle="#fff"; centsCtx.globalAlpha=0.2;
+  centsCtx.fillRect(highlightXStart,0,highlightWidth,h); centsCtx.globalAlpha=1.0;
 
   // Center line
-  cCtx.strokeStyle="#aaa";
-  cCtx.beginPath();
-  cCtx.moveTo(w/2,0); cCtx.lineTo(w/2,h); cCtx.stroke();
+  centsCtx.strokeStyle="#aaa"; centsCtx.beginPath(); centsCtx.moveTo(w/2,0); centsCtx.lineTo(w/2,h); centsCtx.stroke();
 
-  // Extremities labels
-  cCtx.fillStyle="#fff";
-  cCtx.fillText("-50¢",5,15);
-  cCtx.fillText("0¢",w/2-10,15);
-  cCtx.fillText("+50¢",w-35,15);
+  // Labels
+  centsCtx.fillStyle="#fff"; centsCtx.fillText("-50¢",5,15);
+  centsCtx.fillText("0¢",w/2-10,15);
+  centsCtx.fillText("+50¢",w-35,15);
 
   // Vertical needle
-  const x = w/2 + cents*scale;
-  cCtx.strokeStyle="#fff";
-  cCtx.beginPath();
-  cCtx.moveTo(x,0);
-  cCtx.lineTo(x,h);
-  cCtx.stroke();
+  const x=w/2+cents*scale;
+  centsCtx.strokeStyle="#fff"; centsCtx.beginPath(); centsCtx.moveTo(x,0); centsCtx.lineTo(x,h); centsCtx.stroke();
 }
 
+// ---- Update pitch display ----
+function updatePitchDisplay(detectedPitch){
+  if(detectedPitch<=0) return;
 
-/* --- Oscilloscope --- */
-function drawOscilloscope(buffer,pitchHz,sampleRate){
-  oCtx.clearRect(0,0,oscilloscope.width,oscilloscope.height);
-  oCtx.beginPath();
-  oCtx.strokeStyle="#0f0";
-  if (pitchHz<=0) return;
-  let displayCycles,averageCycles;
-  if (manualToggle.checked){ displayCycles=cyclesToDisplay; averageCycles=cyclesToAverage; }
-  else { displayCycles = pitchHz>200?5:3; averageCycles=3; }
-  const samplesPerCycle = sampleRate/pitchHz;
-  const totalSamples = buffer.length;
-  averageCycles = Math.min(averageCycles, Math.floor(totalSamples/samplesPerCycle));
-  displayCycles = Math.min(displayCycles,averageCycles);
-  const averaged = new Float32Array(Math.floor(samplesPerCycle));
-  for(let c=0;c<averageCycles;c++){
-    const offset = totalSamples - Math.floor(samplesPerCycle*averageCycles) + c*Math.floor(samplesPerCycle);
-    for(let i=0;i<averaged.length;i++) averaged[i] += buffer[offset+i]/averageCycles;
-  }
-  const samplesToDraw = Math.floor(samplesPerCycle*displayCycles);
-  for(let i=0;i<samplesToDraw;i++){
-    const idx = i%averaged.length;
-    const x = (i/samplesToDraw)*oscilloscope.width;
-    const y = (0.5+averaged[idx]/2)*oscilloscope.height;
-    i===0?oCtx.moveTo(x,y):oCtx.lineTo(x,y);
-  }
-  oCtx.stroke();
+  smoothedPitch = pitchAlpha*detectedPitch + (1-pitchAlpha)*smoothedPitch;
+
+  const note = noteFromPitch(smoothedPitch);
+  const rawCents = centsOffFromPitch(smoothedPitch,note);
+
+  smoothedCents = centsAlpha*rawCents + (1-centsAlpha)*smoothedCents;
+
+  noteElem.textContent = `${noteStrings[note%12]}${Math.floor(note/12)-1}`;
+  if(showCentsText.checked) centsText.textContent = `(${smoothedCents.toFixed(1)}¢)`;
+  else centsText.textContent = '';
+  drawCents(smoothedCents);
 }
 
-/* --- Microphone and Yin pitch detection --- */
+// ---- Microphone setup ----
 navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-  const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-  const analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 2048;
-  const bufferLength = analyser.fftSize;
-  const data = new Float32Array(bufferLength);
+  const audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(stream);
-  source.connect(analyser);
+  const processor = audioCtx.createScriptProcessor(2048,1,1);
 
-  function yinDetector(buf, sampleRate) {
-    const threshold = 0.1;
-    const maxLag = Math.floor(buf.length/2);
-    const yinBuffer = new Float32Array(maxLag);
-    let minTau = -1;
+  source.connect(processor);
+  processor.connect(audioCtx.destination);
 
-    // Step 1: difference function
-    for (let tau = 1; tau < maxLag; tau++) {
-      let sum = 0;
-      for (let i = 0; i < maxLag; i++) {
-        const delta = buf[i] - buf[i + tau];
-        sum += delta * delta;
-      }
-      yinBuffer[tau] = sum;
-    }
-    yinBuffer[0] = 1;
+  processor.onaudioprocess = e => {
+    const buf = e.inputBuffer.getChannelData(0);
+    drawWaveform(buf);
+    const pitch = yinDetector(buf,audioCtx.sampleRate);
+    updatePitchDisplay(pitch);
+  };
+}).catch(err=>console.log("Microphone error:",err));
 
-    // Step 2: cumulative mean normalized difference
-    let runningSum = 0;
-    for (let tau = 1; tau < maxLag; tau++) {
-      runningSum += yinBuffer[tau];
-      yinBuffer[tau] *= tau / runningSum;
-    }
-
-    // Step 3: threshold detection
-    for (let tau = 2; tau < maxLag; tau++) {
-      if (yinBuffer[tau] < threshold) {
-        while (tau + 1 < maxLag && yinBuffer[tau + 1] < yinBuffer[tau]) tau++;
-        minTau = tau;
-        break;
-      }
-    }
-
-    if (minTau === -1) return -1;
-
-    // Step 4: parabolic interpolation
-    if (minTau > 0 && minTau < maxLag - 1) {
-      const y0 = yinBuffer[minTau - 1];
-      const y1 = yinBuffer[minTau];
-      const y2 = yinBuffer[minTau + 1];
-      const delta = (y0 - y2) / (2 * (y0 - 2 * y1 + y2));
-      return sampleRate / (minTau + delta);
-    }
-
-    return sampleRate / minTau;
-  }
-
-  function update(){
-    analyser.getFloatTimeDomainData(data);
-    const pitch = yinDetector(data,audioCtx.sampleRate);
-    if(pitch>0){
-      const note = noteFromPitch(pitch);
-      const name = noteStrings[note%12];
-      const octave = Math.floor(note/12)-1;
-      const cents = centsOffFromPitch(pitch,note);
-      noteElem.textContent = `${name}${octave}`;
-      centsText.textContent = `(${cents.toFixed(1)}¢)`;
-      if(toggleCents.checked) drawCents(cents);
-      if(toggleOscilloscope.checked) drawOscilloscope(data,pitch,audioCtx.sampleRate);
-    }
-    requestAnimationFrame(update);
-  }
-  update();
-});
 </script>
+
 </body>
 </html>

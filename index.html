@@ -1,268 +1,258 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Web Tuner</title>
-  <style>
-    body {
-      background: #111;
-      color: #eee;
-      font-family: sans-serif;
-      text-align: center;
-    }
-    #noteDisplay {
-      font-size: 3em;
-      margin: 10px 0;
-    }
-    #pitchDisplay {
-      font-size: 1.5em;
-      margin: 5px 0 20px;
-    }
-    canvas {
-      display: block;
-      margin: 10px auto;
-      background: #222;
-    }
-    #centsCanvas {
-      width: 600px;
-      height: 200px;
-    }
-    #oscilloscope {
-      width: 600px;
-      height: 100px;
-      display: none; /* hidden initially */
-    }
-    #controls {
-      margin: 20px;
-      font-size: 1em;
-    }
-    label {
-      cursor: pointer;
-      display: inline-block;
-      margin: 0 10px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Tuner</title>
+<style>
+  body { font-family: sans-serif; text-align: center; background: #111; color: #eee; }
+  canvas { background: #000; display: block; margin: 10px auto; }
+  label { display: block; margin: 5px; }
+  #controls { margin-top: 20px; }
+
+  /* LED indicator */
+  #mode-indicator { margin: 10px 0; font-size: 14px; display: flex; align-items: center; justify-content:center;}
+  .led {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background-color: #222;
+    box-shadow: inset -1px -1px 3px rgba(0,0,0,0.8),
+                inset 1px 1px 3px rgba(255,255,255,0.1);
+    position: relative;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .led.on {
+    background-color: red;
+    box-shadow: 0 0 8px rgba(255,0,0,0.8),
+                0 0 14px rgba(255,0,0,0.6),
+                inset -1px -1px 3px rgba(0,0,0,0.6),
+                inset 1px 1px 4px rgba(255,255,255,0.5);
+    transition: background-color 0.6s ease, box-shadow 0.6s ease;
+  }
+  .led::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 60%;
+    height: 40%;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.4);
+    filter: blur(1px);
+    pointer-events: none;
+  }
+  .label { user-select: none; }
+
+  /* Sliders layout */
+  #oscilloscopeControls { text-align:left; width:600px; margin:10px auto; }
+</style>
 </head>
 <body>
-  <h1>Web Tuner</h1>
-  <div id="noteDisplay">--</div>
-  <div id="pitchDisplay">-- Hz</div>
+<h1>Tuner</h1>
 
-  <canvas id="centsCanvas" width="600" height="200"></canvas>
-  <canvas id="oscilloscope" width="600" height="100"></canvas>
+<div id="pitchInfo">
+  <h2><span id="noteName">--</span> <span id="centsText">(0¢)</span></h2>
+</div>
 
-  <div id="controls">
-    <label>
-      <input type="checkbox" id="toggleCentsText"> Show difference in cents (text)
-    </label>
-    <label>
-      <input type="checkbox" id="toggleCentsGraph" checked> Show difference in cents (graph)
-    </label>
-    <label>
-      <input type="checkbox" id="toggleWaveform"> Show waveform
-    </label>
+<canvas id="centsCanvas" width="600" height="100"></canvas>
+<canvas id="oscilloscope" width="600" height="100" style="display:none;"></canvas>
+
+<!-- LED indicator -->
+<div id="mode-indicator">
+  <span class="led" id="autoLed"></span>
+  <span class="label">Auto</span>
+</div>
+
+<div id="controls">
+  <label><input type="checkbox" id="toggleCents" checked> Show cents graph</label>
+  <label><input type="checkbox" id="toggleOscilloscope"> Show oscilloscope</label>
+
+  <div id="oscilloscopeControls" style="display:none;">
+    <label><input type="checkbox" id="manualToggle"> Manual cycles mode</label>
+    <label>Cycles to display: <input type="range" id="cycleSlider" min="1" max="10" step="1" value="5"> <span id="cycleValue">5</span></label>
+    <label>Cycles to average: <input type="range" id="averageSlider" min="1" max="10" step="1" value="3"> <span id="averageValue">3</span></label>
   </div>
+</div>
 
-  <script>
-    // === Audio setup ===
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    const bufferLength = analyser.fftSize;
-    const dataArray = new Float32Array(bufferLength);
+<script>
+/* --- Helper functions for notes and cents --- */
+const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+function noteFromPitch(freq) { return Math.round(12 * (Math.log2(freq / 440)) + 57); }
+function frequencyFromNoteNumber(note) { return 440 * Math.pow(2, (note - 57) / 12); }
+function centsOffFromPitch(freq, note) { return 1200 * Math.log2(freq / frequencyFromNoteNumber(note)); }
 
-    const oscilloscope = document.getElementById("oscilloscope");
-    const oCtx = oscilloscope.getContext("2d");
+/* --- DOM elements --- */
+const noteElem = document.getElementById("noteName");
+const centsText = document.getElementById("centsText");
+const centsCanvas = document.getElementById("centsCanvas");
+const cCtx = centsCanvas.getContext("2d");
 
-    const centsCanvas = document.getElementById("centsCanvas");
-    const cCtx = centsCanvas.getContext("2d");
+const oscilloscope = document.getElementById("oscilloscope");
+const oCtx = oscilloscope.getContext("2d");
 
-    const pitchDisplay = document.getElementById("pitchDisplay");
-    const noteDisplay = document.getElementById("noteDisplay");
+const toggleCents = document.getElementById("toggleCents");
+const toggleOscilloscope = document.getElementById("toggleOscilloscope");
+const oscilloscopeControls = document.getElementById("oscilloscopeControls");
+const manualToggle = document.getElementById("manualToggle");
+const cycleSlider = document.getElementById("cycleSlider");
+const cycleValue = document.getElementById("cycleValue");
+const averageSlider = document.getElementById("averageSlider");
+const averageValue = document.getElementById("averageValue");
+const autoLed = document.getElementById("autoLed");
 
-    const toggleCentsText = document.getElementById("toggleCentsText");
-    const toggleCentsGraph = document.getElementById("toggleCentsGraph");
-    const toggleWaveform = document.getElementById("toggleWaveform");
+let cyclesToDisplay = parseInt(cycleSlider.value);
+let cyclesToAverage = parseInt(averageSlider.value);
 
-    toggleWaveform.addEventListener("change", () => {
-      oscilloscope.style.display = toggleWaveform.checked ? "block" : "none";
-    });
+/* --- LED Indicator --- */
+function updateModeIndicator() {
+  if (manualToggle.checked) autoLed.classList.remove("on");
+  else autoLed.classList.add("on");
+}
+updateModeIndicator();
+manualToggle.addEventListener("change", updateModeIndicator);
 
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(analyser);
-      drawWaveform();
-      setInterval(updatePitchAndNote, 100); // update every 100ms
-    });
+/* --- Sliders --- */
+cycleSlider.addEventListener("input", () => {
+  if (!manualToggle.checked) manualToggle.checked = true;
+  cyclesToDisplay = parseInt(cycleSlider.value);
+  cycleValue.textContent = cyclesToDisplay;
+  updateModeIndicator();
+});
+averageSlider.addEventListener("input", () => {
+  if (!manualToggle.checked) manualToggle.checked = true;
+  cyclesToAverage = parseInt(averageSlider.value);
+  averageValue.textContent = cyclesToAverage;
+  updateModeIndicator();
+});
 
-    // === Oscilloscope waveform ===
-    function drawWaveform() {
-      requestAnimationFrame(drawWaveform);
-      analyser.getFloatTimeDomainData(dataArray);
+/* --- Toggles --- */
+toggleCents.addEventListener("change", () => { centsCanvas.style.display = toggleCents.checked ? "block" : "none"; });
+toggleOscilloscope.addEventListener("change", () => {
+  oscilloscope.style.display = toggleOscilloscope.checked ? "block" : "none";
+  oscilloscopeControls.style.display = toggleOscilloscope.checked ? "block" : "none";
+});
 
-      oCtx.fillStyle = "#222";
-      oCtx.fillRect(0, 0, oscilloscope.width, oscilloscope.height);
+/* --- Cents graph --- */
+function drawCents(cents) {
+  cCtx.clearRect(0,0,centsCanvas.width,centsCanvas.height);
+  const w = centsCanvas.width, h = centsCanvas.height;
 
-      oCtx.lineWidth = 2;
-      oCtx.strokeStyle = "#0f0";
-      oCtx.beginPath();
+  // Define band widths
+  const centerBand = 5; // ±5¢
+  const nearBand = 25;  // ±25¢
+  const scale = w/2/50; // pixels per cent
 
-      const sliceWidth = oscilloscope.width / bufferLength;
-      let x = 0;
+  // Draw far bands (±25 to 50)
+  cCtx.fillStyle = "#444"; // light gray
+  cCtx.fillRect(0,0,(w/2 - nearBand*scale),h); // left far
+  cCtx.fillRect(w/2 + nearBand*scale,0,w/2 - nearBand*scale,h); // right far
 
-      for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] * 0.5 + 0.5;
-        const y = v * oscilloscope.height;
-        if (i === 0) oCtx.moveTo(x, y);
-        else oCtx.lineTo(x, y);
-        x += sliceWidth;
-      }
+  // Draw near bands (±5 to 25)
+  cCtx.fillStyle = "#666"; // medium gray
+  cCtx.fillRect(w/2 - nearBand*scale,0, (nearBand-centerBand)*scale, h); // left near
+  cCtx.fillRect(w/2 + centerBand*scale,0, (nearBand-centerBand)*scale, h); // right near
 
-      oCtx.stroke();
+  // Draw center band (±5¢)
+  cCtx.fillStyle = "#888"; // dark gray
+  cCtx.fillRect(w/2 - centerBand*scale,0, 2*centerBand*scale, h);
+
+  // Center line
+  cCtx.strokeStyle="#aaa";
+  cCtx.beginPath();
+  cCtx.moveTo(w/2,0); cCtx.lineTo(w/2,h); cCtx.stroke();
+
+  // Extremities labels
+  cCtx.fillStyle="#fff";
+  cCtx.fillText("-50¢",5,15);
+  cCtx.fillText("0¢",w/2-10,15);
+  cCtx.fillText("+50¢",w-35,15);
+
+  // Dot
+  const x = w/2 + cents*scale;
+  const y = h/2;
+  cCtx.fillStyle="#fff";
+  cCtx.beginPath();
+  cCtx.arc(x,y,6,0,2*Math.PI);
+  cCtx.fill();
+}
+
+/* --- Oscilloscope --- */
+function drawOscilloscope(buffer,pitchHz,sampleRate){
+  oCtx.clearRect(0,0,oscilloscope.width,oscilloscope.height);
+  oCtx.beginPath();
+  oCtx.strokeStyle="#0f0";
+  if (pitchHz<=0) return;
+  let displayCycles,averageCycles;
+  if (manualToggle.checked){ displayCycles=cyclesToDisplay; averageCycles=cyclesToAverage; }
+  else { displayCycles = pitchHz>200?5:3; averageCycles=3; }
+  const samplesPerCycle = sampleRate/pitchHz;
+  const totalSamples = buffer.length;
+  averageCycles = Math.min(averageCycles, Math.floor(totalSamples/samplesPerCycle));
+  displayCycles = Math.min(displayCycles,averageCycles);
+  const averaged = new Float32Array(Math.floor(samplesPerCycle));
+  for(let c=0;c<averageCycles;c++){
+    const offset = totalSamples - Math.floor(samplesPerCycle*averageCycles) + c*Math.floor(samplesPerCycle);
+    for(let i=0;i<averaged.length;i++) averaged[i] += buffer[offset+i]/averageCycles;
+  }
+  const samplesToDraw = Math.floor(samplesPerCycle*displayCycles);
+  for(let i=0;i<samplesToDraw;i++){
+    const idx = i%averaged.length;
+    const x = (i/samplesToDraw)*oscilloscope.width;
+    const y = (0.5+averaged[idx]/2)*oscilloscope.height;
+    i===0?oCtx.moveTo(x,y):oCtx.lineTo(x,y);
+  }
+  oCtx.stroke();
+}
+
+/* --- Microphone and Yin pitch detection --- */
+navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+  const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  const bufferLength = analyser.fftSize;
+  const data = new Float32Array(bufferLength);
+  const source = audioCtx.createMediaStreamSource(stream);
+  source.connect(analyser);
+
+  function yinDetector(buf,sampleRate){
+    const threshold=0.1;
+    const maxLag=Math.floor(buf.length/2);
+    const yinBuffer = new Float32Array(maxLag);
+    let minTau=-1;
+    for(let tau=1;tau<maxLag;tau++){
+      let sum=0;
+      for(let i=0;i<maxLag;i++){ const delta = buf[i]-buf[i+tau]; sum+=delta*delta; }
+      yinBuffer[tau]=sum;
     }
-
-    // === Yin pitch detection ===
-    function yinPitch(float32AudioBuffer, sampleRate) {
-      const threshold = 0.1;
-      const bufferSize = float32AudioBuffer.length;
-      const yinBuffer = new Float32Array(bufferSize / 2);
-      let tau, delta, runningSum, j;
-      for (tau = 1; tau < yinBuffer.length; tau++) {
-        runningSum = 0;
-        for (j = 0; j < yinBuffer.length; j++) {
-          delta = float32AudioBuffer[j] - float32AudioBuffer[j + tau];
-          runningSum += delta * delta;
-        }
-        yinBuffer[tau] = runningSum;
-      }
-      runningSum = 0;
-      yinBuffer[0] = 1;
-      for (tau = 1; tau < yinBuffer.length; tau++) {
-        runningSum += yinBuffer[tau];
-        yinBuffer[tau] *= tau / runningSum;
-      }
-      let tauEstimate = -1;
-      for (tau = 2; tau < yinBuffer.length; tau++) {
-        if (yinBuffer[tau] < threshold) {
-          while (tau + 1 < yinBuffer.length && yinBuffer[tau + 1] < yinBuffer[tau]) tau++;
-          tauEstimate = tau;
-          break;
-        }
-      }
-      if (tauEstimate === -1) return null;
-      let betterTau, x0, x1, x2;
-      if (tauEstimate > 0 && tauEstimate < yinBuffer.length - 1) {
-        x0 = yinBuffer[tauEstimate - 1];
-        x1 = yinBuffer[tauEstimate];
-        x2 = yinBuffer[tauEstimate + 1];
-        betterTau = tauEstimate + (x2 - x0) / (2 * (2 * x1 - x2 - x0));
-      } else betterTau = tauEstimate;
-      return sampleRate / betterTau;
+    yinBuffer[0]=1;
+    let runningSum=0;
+    for(let tau=1;tau<maxLag;tau++){ runningSum+=yinBuffer[tau]; yinBuffer[tau]*=tau/runningSum; }
+    for(let tau=2;tau<maxLag;tau++){
+      if(yinBuffer[tau]<threshold){ while(tau+1<maxLag&&yinBuffer[tau+1]<yinBuffer[tau]) tau++; minTau=tau; break; }
     }
+    if(minTau===-1) return -1;
+    return sampleRate/minTau;
+  }
 
-    // === Note + cents calculation ===
-    function frequencyToNoteWithCents(frequency) {
-      const A4 = 440;
-      const noteNumber = 12 * (Math.log2(frequency / A4)) + 69;
-      const nearestNote = Math.round(noteNumber);
-      const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-      const noteName = noteNames[(nearestNote % 12 + 12) % 12];
-      const octave = Math.floor(nearestNote / 12) - 1;
-      const noteWithOctave = noteName + octave;
-      const noteFreq = A4 * Math.pow(2, (nearestNote - 69) / 12);
-      const cents = 1200 * Math.log2(frequency / noteFreq);
-      return { noteWithOctave, cents };
+  function update(){
+    analyser.getFloatTimeDomainData(data);
+    const pitch = yinDetector(data,audioCtx.sampleRate);
+    if(pitch>0){
+      const note = noteFromPitch(pitch);
+      const name = noteStrings[note%12];
+      const octave = Math.floor(note/12)-1;
+      const cents = centsOffFromPitch(pitch,note);
+      noteElem.textContent = `${name}${octave}`;
+      centsText.textContent = `(${cents.toFixed(1)}¢)`;
+      if(toggleCents.checked) drawCents(cents);
+      if(toggleOscilloscope.checked) drawOscilloscope(data,pitch,audioCtx.sampleRate);
     }
-
-    function updatePitchAndNote() {
-      analyser.getFloatTimeDomainData(dataArray);
-      const sampleRate = audioCtx.sampleRate;
-      const pitch = yinPitch(dataArray, sampleRate);
-
-      if (pitch) {
-        pitchDisplay.textContent = pitch.toFixed(2) + ' Hz';
-        const { noteWithOctave, cents } = frequencyToNoteWithCents(pitch);
-
-        noteDisplay.textContent = toggleCentsText.checked
-          ? `${noteWithOctave} (${cents.toFixed(2)} cents)`
-          : noteWithOctave;
-
-        drawCentsIndicator(toggleCentsGraph.checked ? cents : null);
-      } else {
-        pitchDisplay.textContent = '-- Hz';
-        noteDisplay.textContent = '--';
-        drawCentsIndicator(null);
-      }
-    }
-
-    // === Cents graph ===
-    function drawCentsIndicator(cents) {
-      if (!toggleCentsGraph.checked) {
-        centsCanvas.style.display = "none";
-        return;
-      } else {
-        centsCanvas.style.display = "block";
-      }
-
-      const w = centsCanvas.width;
-      const h = centsCanvas.height;
-      cCtx.clearRect(0, 0, w, h);
-
-      // Background bands
-      function drawBand(limitCents, color) {
-        const x1 = w/2 + (-limitCents / 50) * (w/2);
-        const x2 = w/2 + (limitCents / 50) * (w/2);
-        cCtx.fillStyle = color;
-        cCtx.fillRect(x1, 0, x2 - x1, h);
-      }
-      drawBand(50, "#331111"); // red
-      drawBand(15, "#333311"); // yellow
-      drawBand(5, "#113311");  // green
-
-      // Center line
-      cCtx.strokeStyle = "#888";
-      cCtx.beginPath();
-      cCtx.moveTo(w/2, 0);
-      cCtx.lineTo(w/2, h);
-      cCtx.stroke();
-
-      // Tick marks at band edges
-      const tickPositions = [-50, -15, -5, 0, 5, 15, 50];
-      tickPositions.forEach(cent => {
-        const xTick = w/2 + (cent / 50) * (w/2);
-        // Keep text inside canvas
-        const labelOffset = 12;
-        const x = Math.min(Math.max(xTick, labelOffset), w - labelOffset);
-
-        // Tick line
-        cCtx.strokeStyle = "#aaa";
-        cCtx.beginPath();
-        cCtx.moveTo(xTick, h - 10);
-        cCtx.lineTo(xTick, h);
-        cCtx.stroke();
-
-        // Tick label color
-        let color;
-        if (Math.abs(cent) <= 5) color = "#0f0";
-        else if (Math.abs(cent) <= 15) color = "#ff0";
-        else color = "#f00";
-
-        cCtx.fillStyle = color;
-        cCtx.font = "12px sans-serif";
-        cCtx.fillText(cent > 0 ? `+${cent}c` : `${cent}c`, x - labelOffset, h - 15);
-      });
-
-      // Needle
-      if (cents === null) return;
-      const clamped = Math.max(-50, Math.min(50, cents));
-      const xNeedle = w/2 + (clamped / 50) * (w/2);
-      cCtx.strokeStyle = "red";
-      cCtx.lineWidth = 3;
-      cCtx.beginPath();
-      cCtx.moveTo(xNeedle, 0);
-      cCtx.lineTo(xNeedle, h);
-      cCtx.stroke();
-    }
-  </script>
+    requestAnimationFrame(update);
+  }
+  update();
+});
+</script>
 </body>
 </html>

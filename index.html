@@ -4,39 +4,64 @@
 <meta charset="UTF-8">
 <title>Tuner</title>
 <style>
-  body { background:black; color:white; font-family:sans-serif; }
-  canvas { display:block; margin:10px 0; background:#111; }
+  body {
+    background:black; 
+    color:white; 
+    font-family:sans-serif; 
+    margin:0;
+    padding:0;
+  }
+  .wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    margin: 0 auto;
+    max-width: 95%;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  canvas { 
+    display:block; 
+    margin:10px 0; 
+    background:#111; 
+  }
   label { display:block; margin-top:10px; }
+  #noteName { font-size: 2em; margin-right:10px; }
+  #centsText { font-size: 1.5em; }
 </style>
 </head>
 <body>
 
-<h1>Microphone Tuner</h1>
+<div class="wrapper">
+  <h1>Microphone Tuner</h1>
 
-<!-- Display elements -->
-<div>
-  <span id="noteName">--</span>
-  <span id="centsText">(0¢)</span>
+  <!-- Display elements -->
+  <div>
+    <span id="noteName">--</span>
+    <span id="centsText">(0¢)</span>
+  </div>
+
+  <!-- Checkboxes -->
+  <label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
+  <label><input type="checkbox" id="showCentsText" checked> Show Cents Text</label>
+  <label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
+
+  <!-- Canvases -->
+  <canvas id="centsCanvas" height="50"></canvas>
+  <canvas id="waveformCanvas" height="100"></canvas>
+
+  <!-- Sliders -->
+  <label>Pitch Smoothing: <span id="pitchAlphaValue">0.3</span></label>
+  <input type="range" id="pitchAlphaSlider" min="0.1" max="1" step="0.05" value="0.3">
+
+  <label>Cents Smoothing: <span id="centsAlphaValue">0.3</span></label>
+  <input type="range" id="centsAlphaSlider" min="0.1" max="1" step="0.05" value="0.3">
 </div>
-
-<!-- Checkboxes -->
-<label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
-<label><input type="checkbox" id="showCentsText" checked> Show Cents Text</label>
-<label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
-
-<!-- Canvases -->
-<canvas id="centsCanvas" width="500" height="50"></canvas>
-<canvas id="waveformCanvas" width="500" height="100"></canvas>
-
-<!-- Sliders -->
-<label>Pitch Smoothing: <span id="pitchAlphaValue">0.3</span></label>
-<input type="range" id="pitchAlphaSlider" min="0.1" max="1" step="0.05" value="0.3">
-
-<label>Cents Smoothing: <span id="centsAlphaValue">0.3</span></label>
-<input type="range" id="centsAlphaSlider" min="0.1" max="1" step="0.05" value="0.3">
 
 <script>
 // ---- Canvas setup ----
+const wrapper = document.querySelector('.wrapper');
 const waveCanvas = document.getElementById('waveformCanvas');
 const waveCtx = waveCanvas.getContext('2d');
 const centsCanvas = document.getElementById('centsCanvas');
@@ -111,6 +136,15 @@ function yinDetector(buf, sampleRate) {
 // ---- Note / cents conversion ----
 function noteFromPitch(f) { return Math.round(12*Math.log2(f/440))+69; }
 function centsOffFromPitch(f,note){ return 1200*Math.log2(f/(440*Math.pow(2,(note-69)/12))); }
+
+// ---- Responsive canvases ----
+function resizeCanvases(){
+  const w = wrapper.clientWidth;
+  waveCanvas.width = w;
+  centsCanvas.width = w;
+}
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
 
 // ---- Draw waveform ----
 function drawWaveform(data){
@@ -199,7 +233,6 @@ navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
     updatePitchDisplay(pitch);
   };
 }).catch(err=>console.log("Microphone error:",err));
-
 </script>
 
 </body>

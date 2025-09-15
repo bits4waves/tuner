@@ -139,24 +139,58 @@ function drawCents(cents) {
   cCtx.clearRect(0,0,centsCanvas.width,centsCanvas.height);
   const w = centsCanvas.width, h = centsCanvas.height;
 
-  // Define band widths
+  // Band widths
   const centerBand = 5; // ±5¢
   const nearBand = 25;  // ±25¢
   const scale = w/2/50; // pixels per cent
 
-  // Draw far bands (±25 to 50)
+  // Compute pixel positions
+  const leftFar = 0;
+  const leftNear = w/2 - nearBand*scale;
+  const centerLeft = w/2 - centerBand*scale;
+  const centerRight = w/2 + centerBand*scale;
+  const rightNear = w/2 + nearBand*scale;
+  const rightFar = w;
+
+  // Determine highlighted band
+  let highlightColor = "#fff"; // brighter white for highlight
+  let highlightXStart, highlightWidth;
+  if (cents >= -centerBand && cents <= centerBand) {
+    highlightXStart = centerLeft;
+    highlightWidth = centerRight - centerLeft;
+  } else if (cents > centerBand && cents <= nearBand) {
+    highlightXStart = centerRight;
+    highlightWidth = rightNear - centerRight;
+  } else if (cents < -centerBand && cents >= -nearBand) {
+    highlightXStart = leftNear;
+    highlightWidth = centerLeft - leftNear;
+  } else if (cents > nearBand) {
+    highlightXStart = rightNear;
+    highlightWidth = rightFar - rightNear;
+  } else { // cents < -nearBand
+    highlightXStart = leftFar;
+    highlightWidth = leftNear - leftFar;
+  }
+
+  // Draw far bands
   cCtx.fillStyle = "#444"; // light gray
-  cCtx.fillRect(0,0,(w/2 - nearBand*scale),h); // left far
-  cCtx.fillRect(w/2 + nearBand*scale,0,w/2 - nearBand*scale,h); // right far
+  cCtx.fillRect(leftFar,0,leftNear-leftFar,h); // left far
+  cCtx.fillRect(rightNear,0,rightFar-rightNear,h); // right far
 
-  // Draw near bands (±5 to 25)
+  // Draw near bands
   cCtx.fillStyle = "#666"; // medium gray
-  cCtx.fillRect(w/2 - nearBand*scale,0, (nearBand-centerBand)*scale, h); // left near
-  cCtx.fillRect(w/2 + centerBand*scale,0, (nearBand-centerBand)*scale, h); // right near
+  cCtx.fillRect(leftNear,0,centerLeft-leftNear,h); // left near
+  cCtx.fillRect(centerRight,0,rightNear-centerRight,h); // right near
 
-  // Draw center band (±5¢)
+  // Draw center band
   cCtx.fillStyle = "#888"; // dark gray
-  cCtx.fillRect(w/2 - centerBand*scale,0, 2*centerBand*scale, h);
+  cCtx.fillRect(centerLeft,0,centerRight-centerLeft,h);
+
+  // Highlight current band
+  cCtx.fillStyle = highlightColor;
+  cCtx.globalAlpha = 0.2; // semi-transparent highlight
+  cCtx.fillRect(highlightXStart,0,highlightWidth,h);
+  cCtx.globalAlpha = 1.0;
 
   // Center line
   cCtx.strokeStyle="#aaa";

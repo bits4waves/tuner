@@ -203,14 +203,15 @@ function drawCents(cents) {
   cCtx.fillText("0¢",w/2-10,15);
   cCtx.fillText("+50¢",w-35,15);
 
-  // Dot
+  // Vertical needle
   const x = w/2 + cents*scale;
-  const y = h/2;
-  cCtx.fillStyle="#fff";
+  cCtx.strokeStyle="#fff";
   cCtx.beginPath();
-  cCtx.arc(x,y,6,0,2*Math.PI);
-  cCtx.fill();
+  cCtx.moveTo(x,0);
+  cCtx.lineTo(x,h);
+  cCtx.stroke();
 }
+
 
 /* --- Oscilloscope --- */
 function drawOscilloscope(buffer,pitchHz,sampleRate){
@@ -250,24 +251,51 @@ navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
   const source = audioCtx.createMediaStreamSource(stream);
   source.connect(analyser);
 
-  function yinDetector(buf,sampleRate){
-    const threshold=0.1;
-    const maxLag=Math.floor(buf.length/2);
+  function yinDetector(buf, sampleRate) {
+    const threshold = 0.1;
+    const maxLag = Math.floor(buf.length/2);
     const yinBuffer = new Float32Array(maxLag);
-    let minTau=-1;
-    for(let tau=1;tau<maxLag;tau++){
-      let sum=0;
-      for(let i=0;i<maxLag;i++){ const delta = buf[i]-buf[i+tau]; sum+=delta*delta; }
-      yinBuffer[tau]=sum;
+    let minTau = -1;
+
+    // Step 1: difference function
+    for (let tau = 1; tau < maxLag; tau++) {
+      let sum = 0;
+      for (let i = 0; i < maxLag; i++) {
+        const delta = buf[i] - buf[i + tau];
+        sum += delta * delta;
+      }
+      yinBuffer[tau] = sum;
     }
-    yinBuffer[0]=1;
-    let runningSum=0;
-    for(let tau=1;tau<maxLag;tau++){ runningSum+=yinBuffer[tau]; yinBuffer[tau]*=tau/runningSum; }
-    for(let tau=2;tau<maxLag;tau++){
-      if(yinBuffer[tau]<threshold){ while(tau+1<maxLag&&yinBuffer[tau+1]<yinBuffer[tau]) tau++; minTau=tau; break; }
+    yinBuffer[0] = 1;
+
+    // Step 2: cumulative mean normalized difference
+    let runningSum = 0;
+    for (let tau = 1; tau < maxLag; tau++) {
+      runningSum += yinBuffer[tau];
+      yinBuffer[tau] *= tau / runningSum;
     }
-    if(minTau===-1) return -1;
-    return sampleRate/minTau;
+
+    // Step 3: threshold detection
+    for (let tau = 2; tau < maxLag; tau++) {
+      if (yinBuffer[tau] < threshold) {
+        while (tau + 1 < maxLag && yinBuffer[tau + 1] < yinBuffer[tau]) tau++;
+        minTau = tau;
+        break;
+      }
+    }
+
+    if (minTau === -1) return -1;
+
+    // Step 4: parabolic interpolation
+    if (minTau > 0 && minTau < maxLag - 1) {
+      const y0 = yinBuffer[minTau - 1];
+      const y1 = yinBuffer[minTau];
+      const y2 = yinBuffer[minTau + 1];
+      const delta = (y0 - y2) / (2 * (y0 - 2 * y1 + y2));
+      return sampleRate / (minTau + delta);
+    }
+
+    return sampleRate / minTau;
   }
 
   function update(){

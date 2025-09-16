@@ -161,43 +161,75 @@ function drawWaveform(data){
 }
 
 // ---- Draw cents graph ----
+function getActiveBand(cents){
+  const absC = Math.abs(cents);
+  if(absC <= 5) return 2;        // Green
+  else if(absC <= 25) return 1;  // Yellow
+  else return 0;                  // Red
+}
+
 function drawCents(cents){
   if(!showCentsGraph.checked) return;
-  const w=centsCanvas.width, h=centsCanvas.height;
+  const w = centsCanvas.width, h = centsCanvas.height;
   centsCtx.clearRect(0,0,w,h);
 
-  const centerBand=5, nearBand=25, scale=w/2/50;
-  const leftFar=0, leftNear=w/2-nearBand*scale, centerLeft=w/2-centerBand*scale;
-  const centerRight=w/2+centerBand*scale, rightNear=w/2+nearBand*scale, rightFar=w;
+  // Define 5 bands
+  const bands = [
+    {min:-50, max:-25, color:'red'},
+    {min:-25, max:-5, color:'yellow'},
+    {min:-5, max:5, color:'green'},
+    {min:5, max:25, color:'yellow'},
+    {min:25, max:50, color:'red'}
+  ];
 
-  // Highlight band
-  let highlightXStart, highlightWidth;
-  if(cents>=-centerBand && cents<=centerBand){highlightXStart=centerLeft;highlightWidth=centerRight-centerLeft;}
-  else if(cents>centerBand && cents<=nearBand){highlightXStart=centerRight;highlightWidth=rightNear-centerRight;}
-  else if(cents<-centerBand && cents>=-nearBand){highlightXStart=leftNear;highlightWidth=centerLeft-leftNear;}
-  else if(cents>nearBand){highlightXStart=rightNear;highlightWidth=rightFar-rightNear;}
-  else {highlightXStart=leftFar;highlightWidth=leftNear-leftFar;}
+  // Draw all bands and highlight the active one
+  bands.forEach(b => {
+    let color = b.color;
+    let alpha = 0.4; // dim by default
 
-  // Draw bands
-  centsCtx.fillStyle="#444"; centsCtx.fillRect(leftFar,0,leftNear-leftFar,h); centsCtx.fillRect(rightNear,0,rightFar-rightNear,h);
-  centsCtx.fillStyle="#666"; centsCtx.fillRect(leftNear,0,centerLeft-leftNear,h); centsCtx.fillRect(centerRight,0,rightNear-centerRight,h);
-  centsCtx.fillStyle="#888"; centsCtx.fillRect(centerLeft,0,centerRight-centerLeft,h);
+    if(cents >= b.min && cents <= b.max){
+      alpha = 1.0; // fully bright for active band
+      if(b.color === 'green') color = 'lime'; // bright green when active
+    }
 
-  // Highlight
-  centsCtx.fillStyle="#fff"; centsCtx.globalAlpha=0.2;
-  centsCtx.fillRect(highlightXStart,0,highlightWidth,h); centsCtx.globalAlpha=1.0;
+    centsCtx.globalAlpha = alpha;
+    const x = w/2 + b.min * w/100;
+    const width = (b.max - b.min) * w/100;
+    centsCtx.fillStyle = color;
+    centsCtx.fillRect(x, 0, width, h);
+  });
 
-  // Center line
-  centsCtx.strokeStyle="#aaa"; centsCtx.beginPath(); centsCtx.moveTo(w/2,0); centsCtx.lineTo(w/2,h); centsCtx.stroke();
+  centsCtx.globalAlpha = 1.0;
 
-  // Labels
-  centsCtx.fillStyle="#fff"; centsCtx.fillText("-50¢",5,15);
-  centsCtx.fillText("0¢",w/2-10,15);
-  centsCtx.fillText("+50¢",w-35,15);
+  const halfCent = (w / 100) / 2; // half cent width
 
-  // Vertical needle
-  const x=w/2+cents*scale;
-  centsCtx.strokeStyle="#fff"; centsCtx.beginPath(); centsCtx.moveTo(x,0); centsCtx.lineTo(x,h); centsCtx.stroke();
+  // Draw center line glow (halo)
+  centsCtx.lineWidth = halfCent * 4; // wider for halo
+  centsCtx.strokeStyle = "rgba(255,255,255,0.2)";
+  centsCtx.beginPath();
+  centsCtx.moveTo(w/2, 0);
+  centsCtx.lineTo(w/2, h);
+  centsCtx.stroke();
+
+  // Draw actual center line (white)
+  centsCtx.lineWidth = halfCent;
+  centsCtx.strokeStyle = "#fff";
+  centsCtx.beginPath();
+  centsCtx.moveTo(w/2, 0);
+  centsCtx.lineTo(w/2, h);
+  centsCtx.stroke();
+
+  // Draw needle (black, half-cent width)
+  const xNeedle = w/2 + cents * w/100;
+  centsCtx.strokeStyle = "#000";
+  centsCtx.lineWidth = halfCent;
+  centsCtx.beginPath();
+  centsCtx.moveTo(xNeedle, 0);
+  centsCtx.lineTo(xNeedle, h);
+  centsCtx.stroke();
+
+  // Reset line width for future drawings
+  centsCtx.lineWidth = 1;
 }
 
 // ---- Update pitch display ----

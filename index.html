@@ -31,7 +31,7 @@
     background:#111; 
   }
   label { display:block; margin-top:10px; }
-  #noteName { font-size: 4em; margin-right:10px; }
+  #noteName { font-size: 22vh; margin-right:10px; }
   #centsText { font-size: 1.5em; display:block; text-align:center; margin-top:5px; }
   #settingsToggle { cursor:pointer; margin-top:15px; font-weight:bold; }
 </style>
@@ -48,8 +48,8 @@
   </div>
 
   <!-- Canvases -->
-  <canvas id="centsCanvas" height="80"></canvas>
-  <canvas id="waveformCanvas" height="100"></canvas>
+  <canvas id="centsCanvas"></canvas>
+  <canvas id="waveformCanvas"></canvas>
 
   <!-- Settings toggle -->
   <div id="settingsToggle">Settings ▶</div>
@@ -158,11 +158,26 @@ function yinDetector(buf, sampleRate) {
 function noteFromPitch(f) { return Math.round(12*Math.log2(f/440))+69; }
 function centsOffFromPitch(f,note){ return 1200*Math.log2(f/(440*Math.pow(2,(note-69)/12))); }
 
+// ---- Make the cents graph the same height as the note name
+function resizeCentsCanvasToNote() {
+  const noteElem = document.getElementById("noteName");
+  const centsCanvas = document.getElementById("centsCanvas");
+
+  const noteHeight = noteElem.offsetHeight;
+  const centsCanvasHeight = noteHeight;
+  centsCanvas.style.height = centsCanvasHeight + "px";
+  centsCanvas.height = centsCanvasHeight; // important: update drawing buffer too
+}
+
+// Call it once and whenever the window resizes
+window.addEventListener("resize", resizeCentsCanvasToNote);
+
 // ---- Responsive canvases ----
 function resizeCanvases(){
   const w = wrapper.clientWidth;
   waveCanvas.width = w;
   centsCanvas.width = w;
+  resizeCentsCanvasToNote();
 }
 window.addEventListener('resize', resizeCanvases);
 resizeCanvases();

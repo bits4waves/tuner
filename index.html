@@ -10,21 +10,20 @@
     font-family:sans-serif; 
     margin:0;
     padding:0;
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    height:100vh;
   }
   .wrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
+    margin: 0 auto;
     max-width: 95%;
     padding: 10px;
     box-sizing: border-box;
-    margin: 0;
   }
   canvas { 
     display:block; 
@@ -32,39 +31,46 @@
     background:#111; 
   }
   label { display:block; margin-top:10px; }
-  #noteName { font-size: 8em; font-weight:bold; margin-right:10px; text-align: center; display:block; }
-  #centsText { font-size: 1.5em; text-align:center; display:block; margin-top:5px; }
+  #noteName { font-size: 4em; margin-right:10px; }
+  #centsText { font-size: 1.5em; display:block; text-align:center; margin-top:5px; }
+  #settingsToggle { cursor:pointer; margin-top:15px; font-weight:bold; }
 </style>
 </head>
 <body>
 
 <div class="wrapper">
-
   <!-- Display elements -->
   <div>
     <span id="noteName">--</span>
+  </div>
+  <div>
     <span id="centsText">(0¢)</span>
   </div>
 
   <!-- Canvases -->
-  <canvas id="centsCanvas" height="128"></canvas>
+  <canvas id="centsCanvas" height="80"></canvas>
   <canvas id="waveformCanvas" height="100"></canvas>
 
-  <!-- Sliders -->
-  <label>Pitch Smoothing: <span id="pitchAlphaValue">0.2</span></label>
-  <input type="range" id="pitchAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
+  <!-- Settings toggle -->
+  <div id="settingsToggle">Settings ▶</div>
 
-  <label>Cents Smoothing: <span id="centsAlphaValue">0.2</span></label>
-  <input type="range" id="centsAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
+  <!-- Collapsible settings panel -->
+  <div id="settingsPanel" style="display:none; margin-top:10px;">
+    <!-- Sliders -->
+    <label>Pitch Smoothing: <span id="pitchAlphaValue">0.20</span></label>
+    <input type="range" id="pitchAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
 
-  <label>Waveform Glow: <span id="waveformGlowValue">0</span></label>
-  <input type="range" id="waveformGlowSlider" min="0" max="20" step="1" value="0">
+    <label>Cents Smoothing: <span id="centsAlphaValue">0.20</span></label>
+    <input type="range" id="centsAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
 
-  <!-- Checkboxes -->
-  <label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
-  <label><input type="checkbox" id="showCentsText"> Show Cents Text</label>
-  <label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
+    <label>Waveform Glow: <span id="glowValue">0</span></label>
+    <input type="range" id="glowSlider" min="0" max="20" step="1" value="0">
 
+    <!-- Checkboxes -->
+    <label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
+    <label><input type="checkbox" id="showCentsText"> Show Cents Text</label>
+    <label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
+  </div>
 </div>
 
 <script>
@@ -82,14 +88,14 @@ const showWaveform = document.getElementById('showWaveform');
 const showCentsText = document.getElementById('showCentsText');
 const showCentsGraph = document.getElementById('showCentsGraph');
 
-const waveformGlowSlider = document.getElementById('waveformGlowSlider');
-let waveformGlow = parseInt(waveformGlowSlider.value);
-
 // ---- EMA variables ----
 let pitchAlpha = parseFloat(document.getElementById("pitchAlphaSlider").value);
 let centsAlpha = parseFloat(document.getElementById("centsAlphaSlider").value);
 let smoothedPitch = 0;
 let smoothedCents = 0;
+
+// ---- Glow control ----
+let glowAmount = parseInt(document.getElementById("glowSlider").value);
 
 // ---- Note names ----
 const noteStrings = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -103,12 +109,12 @@ document.getElementById("centsAlphaSlider").addEventListener("input", e => {
   centsAlpha = parseFloat(e.target.value);
   document.getElementById("centsAlphaValue").textContent = centsAlpha.toFixed(2);
 });
-waveformGlowSlider.addEventListener("input", e => {
-  waveformGlow = parseInt(e.target.value);
-  document.getElementById("waveformGlowValue").textContent = waveformGlow;
+document.getElementById("glowSlider").addEventListener("input", e => {
+  glowAmount = parseInt(e.target.value);
+  document.getElementById("glowValue").textContent = glowAmount;
 });
 
-// ---- Yin pitch detection ----
+// ---- Yin pitch detection (with sub-sample interpolation) ----
 function yinDetector(buf, sampleRate) {
   const threshold = 0.1;
   const maxLag = Math.floor(buf.length/2);
@@ -153,27 +159,23 @@ function noteFromPitch(f) { return Math.round(12*Math.log2(f/440))+69; }
 function centsOffFromPitch(f,note){ return 1200*Math.log2(f/(440*Math.pow(2,(note-69)/12))); }
 
 // ---- Responsive canvases ----
-let lastCents = 0;
 function resizeCanvases(){
   const w = wrapper.clientWidth;
   waveCanvas.width = w;
   centsCanvas.width = w;
-  drawCents(lastCents); // redraw last known value
 }
 window.addEventListener('resize', resizeCanvases);
 resizeCanvases();
 
-// ---- Draw waveform (oscilloscope style) ----
+// ---- Draw waveform ----
 function drawWaveform(data){
   if(!showWaveform.checked) return;
   const w=waveCanvas.width, h=waveCanvas.height;
   waveCtx.clearRect(0,0,w,h);
-
-  waveCtx.strokeStyle = "#0f0";       // bright green
-  waveCtx.shadowColor = "#0f0";       // glow
-  waveCtx.shadowBlur = waveformGlow;  // dynamic glow
-  waveCtx.lineWidth = 2;
-
+  waveCtx.save();
+  waveCtx.shadowBlur = glowAmount; 
+  waveCtx.shadowColor = "lime";
+  waveCtx.strokeStyle="lime"; 
   waveCtx.beginPath();
   for(let i=0;i<data.length;i++){
     const y=(0.5-data[i]/2)*h;
@@ -181,16 +183,15 @@ function drawWaveform(data){
     if(i===0) waveCtx.moveTo(x,y); else waveCtx.lineTo(x,y);
   }
   waveCtx.stroke();
-  waveCtx.shadowBlur = 0;
-  waveCtx.lineWidth = 1;
+  waveCtx.restore();
 }
 
 // ---- Draw cents graph ----
 function drawCents(cents){
-  lastCents = cents;
   const w = centsCanvas.width, h = centsCanvas.height;
   centsCtx.clearRect(0,0,w,h);
 
+  // Define 5 bands
   const bands = [
     {min:-50, max:-25, color:'red'},
     {min:-25, max:-5, color:'yellow'},
@@ -212,11 +213,9 @@ function drawCents(cents){
     centsCtx.fillStyle = color;
     centsCtx.fillRect(x, 0, width, h);
   });
-
   centsCtx.globalAlpha = 1.0;
 
   const halfCent = (w / 100) / 2;
-
   centsCtx.lineWidth = halfCent * 4;
   centsCtx.strokeStyle = "rgba(255,255,255,0.2)";
   centsCtx.beginPath();
@@ -238,6 +237,7 @@ function drawCents(cents){
   centsCtx.moveTo(xNeedle, 0);
   centsCtx.lineTo(xNeedle, h);
   centsCtx.stroke();
+
   centsCtx.lineWidth = 1;
 }
 
@@ -258,9 +258,6 @@ function updatePitchDisplay(detectedPitch){
   drawCents(smoothedCents);
 }
 
-// ---- Initial draw of cents graph at 0¢ ----
-drawCents(0);
-
 // ---- Microphone setup ----
 navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
   const audioCtx = new AudioContext();
@@ -277,6 +274,20 @@ navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
     updatePitchDisplay(pitch);
   };
 }).catch(err=>console.log("Microphone error:",err));
+
+// ---- Settings toggle logic ----
+const settingsToggle = document.getElementById("settingsToggle");
+const settingsPanel = document.getElementById("settingsPanel");
+
+settingsToggle.addEventListener("click", () => {
+  if (settingsPanel.style.display === "none") {
+    settingsPanel.style.display = "block";
+    settingsToggle.textContent = "Settings ▼";
+  } else {
+    settingsPanel.style.display = "none";
+    settingsToggle.textContent = "Settings ▶";
+  }
+});
 </script>
 
 </body>

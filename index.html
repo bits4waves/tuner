@@ -32,7 +32,7 @@
     background:#111; 
   }
   label { display:block; margin-top:10px; }
-  #noteName { font-size: 4em; font-weight:bold; margin-right:10px; }
+  #noteName { font-size: 8em; font-weight:bold; margin-right:10px; }
   #centsText { font-size: 1.5em; }
 </style>
 </head>
@@ -46,13 +46,8 @@
     <span id="centsText">(0¢)</span>
   </div>
 
-  <!-- Checkboxes -->
-  <label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
-  <label><input type="checkbox" id="showCentsText"> Show Cents Text</label>
-  <label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
-
   <!-- Canvases -->
-  <canvas id="centsCanvas" height="50"></canvas>
+  <canvas id="centsCanvas" height="128"></canvas>
   <canvas id="waveformCanvas" height="100"></canvas>
 
   <!-- Sliders -->
@@ -61,6 +56,12 @@
 
   <label>Cents Smoothing: <span id="centsAlphaValue">0.2</span></label>
   <input type="range" id="centsAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
+
+  <!-- Checkboxes -->
+  <label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
+  <label><input type="checkbox" id="showCentsText"> Show Cents Text</label>
+  <label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
+
 </div>
 
 <script>

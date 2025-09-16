@@ -10,16 +10,22 @@
     font-family:sans-serif; 
     margin:0;
     padding:0;
+
+    /* Center content vertically and horizontally */
+    display: flex;
+    justify-content: center;   /* horizontal centering */
+    align-items: center;       /* vertical centering */
+    height: 100vh;             /* full viewport height */
   }
   .wrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    margin: 0 auto;
     max-width: 95%;
     padding: 10px;
     box-sizing: border-box;
+    margin: 0; /* remove auto margin since body handles centering */
   }
   canvas { 
     display:block; 
@@ -161,13 +167,6 @@ function drawWaveform(data){
 }
 
 // ---- Draw cents graph ----
-function getActiveBand(cents){
-  const absC = Math.abs(cents);
-  if(absC <= 5) return 2;        // Green
-  else if(absC <= 25) return 1;  // Yellow
-  else return 0;                  // Red
-}
-
 function drawCents(cents){
   if(!showCentsGraph.checked) return;
   const w = centsCanvas.width, h = centsCanvas.height;
@@ -182,16 +181,13 @@ function drawCents(cents){
     {min:25, max:50, color:'red'}
   ];
 
-  // Draw all bands and highlight the active one
   bands.forEach(b => {
     let color = b.color;
-    let alpha = 0.4; // dim by default
-
+    let alpha = 0.4;
     if(cents >= b.min && cents <= b.max){
-      alpha = 1.0; // fully bright for active band
-      if(b.color === 'green') color = 'lime'; // bright green when active
+      alpha = 1.0;
+      if(b.color === 'green') color = 'lime';
     }
-
     centsCtx.globalAlpha = alpha;
     const x = w/2 + b.min * w/100;
     const width = (b.max - b.min) * w/100;
@@ -201,17 +197,15 @@ function drawCents(cents){
 
   centsCtx.globalAlpha = 1.0;
 
-  const halfCent = (w / 100) / 2; // half cent width
+  const halfCent = (w / 100) / 2;
 
-  // Draw center line glow (halo)
-  centsCtx.lineWidth = halfCent * 4; // wider for halo
+  centsCtx.lineWidth = halfCent * 4;
   centsCtx.strokeStyle = "rgba(255,255,255,0.2)";
   centsCtx.beginPath();
   centsCtx.moveTo(w/2, 0);
   centsCtx.lineTo(w/2, h);
   centsCtx.stroke();
 
-  // Draw actual center line (white)
   centsCtx.lineWidth = halfCent;
   centsCtx.strokeStyle = "#fff";
   centsCtx.beginPath();
@@ -219,7 +213,6 @@ function drawCents(cents){
   centsCtx.lineTo(w/2, h);
   centsCtx.stroke();
 
-  // Draw needle (black, half-cent width)
   const xNeedle = w/2 + cents * w/100;
   centsCtx.strokeStyle = "#000";
   centsCtx.lineWidth = halfCent;
@@ -227,8 +220,6 @@ function drawCents(cents){
   centsCtx.moveTo(xNeedle, 0);
   centsCtx.lineTo(xNeedle, h);
   centsCtx.stroke();
-
-  // Reset line width for future drawings
   centsCtx.lineWidth = 1;
 }
 

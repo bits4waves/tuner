@@ -32,8 +32,8 @@
     background:#111; 
   }
   label { display:block; margin-top:10px; }
-  #noteName { font-size: 8em; font-weight:bold; margin-right:10px; }
-  #centsText { font-size: 1.5em; }
+  #noteName { font-size: 8em; font-weight:bold; margin-right:10px; text-align: center; display:block; }
+  #centsText { font-size: 1.5em; text-align:center; display:block; margin-top:5px; }
 </style>
 </head>
 <body>
@@ -153,18 +153,26 @@ function resizeCanvases(){
 window.addEventListener('resize', resizeCanvases);
 resizeCanvases();
 
-// ---- Draw waveform ----
+// ---- Draw waveform (oscilloscope style) ----
 function drawWaveform(data){
   if(!showWaveform.checked) return;
   const w=waveCanvas.width, h=waveCanvas.height;
   waveCtx.clearRect(0,0,w,h);
-  waveCtx.strokeStyle="#fff"; waveCtx.beginPath();
+
+  waveCtx.strokeStyle = "#0f0";       // bright green
+  waveCtx.shadowColor = "#0f0";       // glow
+  waveCtx.shadowBlur = 10;
+  waveCtx.lineWidth = 2;
+
+  waveCtx.beginPath();
   for(let i=0;i<data.length;i++){
     const y=(0.5-data[i]/2)*h;
     const x=i*w/data.length;
     if(i===0) waveCtx.moveTo(x,y); else waveCtx.lineTo(x,y);
   }
   waveCtx.stroke();
+  waveCtx.shadowBlur = 0; // reset
+  waveCtx.lineWidth = 1;
 }
 
 // ---- Draw cents graph ----

@@ -5,9 +5,9 @@
 <title>Tuner</title>
 <style>
   body {
-    background:black; 
-    color:white; 
-    font-family:sans-serif; 
+    background:black;
+    color:white;
+    font-family:sans-serif;
     margin:0;
     padding:0;
     display:flex;
@@ -26,10 +26,10 @@
     padding: 10px;
     box-sizing: border-box;
   }
-  canvas { 
-    display:block; 
-    margin:10px 0; 
-    background:#111; 
+  canvas {
+    display:block;
+    margin:10px 0;
+    background:#111;
   }
   label { display:block; margin-top:10px; }
   #noteName { font-size: 22vh; margin-right:10px; }
@@ -189,9 +189,9 @@ function drawWaveform(data){
   const w=waveCanvas.width, h=waveCanvas.height;
   waveCtx.clearRect(0,0,w,h);
   waveCtx.save();
-  waveCtx.shadowBlur = glowAmount; 
+  waveCtx.shadowBlur = glowAmount;
   waveCtx.shadowColor = "lime";
-  waveCtx.strokeStyle="lime"; 
+  waveCtx.strokeStyle="lime";
   waveCtx.beginPath();
   for(let i=0;i<data.length;i++){
     const y=(0.5-data[i]/2)*h;

@@ -1,314 +1,313 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Tuner</title>
-<style>
-  body {
-    background:black;
-    color:white;
-    font-family:sans-serif;
-    margin:0;
-    padding:0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    height:100vh;
-  }
-  .wrapper {
-    height: 95%;
-    width: 95%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    margin: 0 auto;
-    padding: 10px;
-    box-sizing: border-box;
-  }
-  canvas {
-    display:block;
-    margin:10px 0;
-    background:#111;
-  }
-  label { display:block; margin-top:10px; }
-  #noteName { font-size: 22vh; margin-right:10px; }
-  #centsText { font-size: 1.5em; display:block; text-align:center; margin-top:5px; }
-  #settingsToggle { cursor:pointer; margin-top:15px; font-weight:bold; }
-</style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8">
+    <title>Tuner</title>
+    <style>
+     body {
+         background:black;
+         color:white;
+         font-family:sans-serif;
+         margin:0;
+         padding:0;
+         display:flex;
+         align-items:center;
+         justify-content:center;
+         height:100vh;
+     }
+     .wrapper {
+         height: 95%;
+         width: 95%;
+         display: flex;
+         flex-direction: column;
+         align-items: center;
+         justify-content: flex-start;
+         margin: 0 auto;
+         padding: 10px;
+         box-sizing: border-box;
+     }
+     canvas {
+         display:block;
+         margin:10px 0;
+         background:#111;
+     }
+     label { display:block; margin-top:10px; }
+     #noteName { font-size: 22vh; margin-right:10px; }
+     #centsText { font-size: 1.5em; display:block; text-align:center; margin-top:5px; }
+     #settingsToggle { cursor:pointer; margin-top:15px; font-weight:bold; }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <!-- Display elements -->
+      <div>
+        <span id="noteName"></span>
+      </div>
+      <div>
+        <span id="centsText">(0¢)</span>
+      </div>
 
-<div class="wrapper">
-  <!-- Display elements -->
-  <div>
-    <span id="noteName"></span>
-  </div>
-  <div>
-    <span id="centsText">(0¢)</span>
-  </div>
+      <!-- Canvases -->
+      <canvas id="centsCanvas"></canvas>
+      <canvas id="waveformCanvas"></canvas>
 
-  <!-- Canvases -->
-  <canvas id="centsCanvas"></canvas>
-  <canvas id="waveformCanvas"></canvas>
+      <!-- Settings toggle -->
+      <div id="settingsToggle">Settings ▶</div>
 
-  <!-- Settings toggle -->
-  <div id="settingsToggle">Settings ▶</div>
+      <!-- Collapsible settings panel -->
+      <div id="settingsPanel" style="display:none; margin-top:10px;">
+        <!-- Sliders -->
+        <label>Pitch Smoothing: <span id="pitchAlphaValue">0.20</span></label>
+        <input type="range" id="pitchAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
 
-  <!-- Collapsible settings panel -->
-  <div id="settingsPanel" style="display:none; margin-top:10px;">
-    <!-- Sliders -->
-    <label>Pitch Smoothing: <span id="pitchAlphaValue">0.20</span></label>
-    <input type="range" id="pitchAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
+        <label>Cents Smoothing: <span id="centsAlphaValue">0.20</span></label>
+        <input type="range" id="centsAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
 
-    <label>Cents Smoothing: <span id="centsAlphaValue">0.20</span></label>
-    <input type="range" id="centsAlphaSlider" min="0.1" max="1" step="0.05" value="0.2">
+        <label>Waveform Glow: <span id="glowValue">0</span></label>
+        <input type="range" id="glowSlider" min="0" max="20" step="1" value="0">
 
-    <label>Waveform Glow: <span id="glowValue">0</span></label>
-    <input type="range" id="glowSlider" min="0" max="20" step="1" value="0">
+        <!-- Checkboxes -->
+        <label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
+        <label><input type="checkbox" id="showCentsText"> Show Cents Text</label>
+        <label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
+      </div>
+    </div>
 
-    <!-- Checkboxes -->
-    <label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
-    <label><input type="checkbox" id="showCentsText"> Show Cents Text</label>
-    <label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
-  </div>
-</div>
+    <script>
+     // ---- Canvas setup ----
+     const wrapper = document.querySelector('.wrapper');
+     const waveCanvas = document.getElementById('waveformCanvas');
+     const waveCtx = waveCanvas.getContext('2d');
+     const centsCanvas = document.getElementById('centsCanvas');
+     const centsCtx = centsCanvas.getContext('2d');
 
-<script>
-// ---- Canvas setup ----
-const wrapper = document.querySelector('.wrapper');
-const waveCanvas = document.getElementById('waveformCanvas');
-const waveCtx = waveCanvas.getContext('2d');
-const centsCanvas = document.getElementById('centsCanvas');
-const centsCtx = centsCanvas.getContext('2d');
+     const noteElem = document.getElementById('noteName');
+     const centsText = document.getElementById('centsText');
 
-const noteElem = document.getElementById('noteName');
-const centsText = document.getElementById('centsText');
+     const showWaveform = document.getElementById('showWaveform');
+     const showCentsText = document.getElementById('showCentsText');
+     const showCentsGraph = document.getElementById('showCentsGraph');
 
-const showWaveform = document.getElementById('showWaveform');
-const showCentsText = document.getElementById('showCentsText');
-const showCentsGraph = document.getElementById('showCentsGraph');
+     // ---- EMA variables ----
+     let pitchAlpha = parseFloat(document.getElementById("pitchAlphaSlider").value);
+     let centsAlpha = parseFloat(document.getElementById("centsAlphaSlider").value);
+     let smoothedPitch = 0;
+     let smoothedCents = 0;
 
-// ---- EMA variables ----
-let pitchAlpha = parseFloat(document.getElementById("pitchAlphaSlider").value);
-let centsAlpha = parseFloat(document.getElementById("centsAlphaSlider").value);
-let smoothedPitch = 0;
-let smoothedCents = 0;
+     // ---- Glow control ----
+     let glowAmount = parseInt(document.getElementById("glowSlider").value);
 
-// ---- Glow control ----
-let glowAmount = parseInt(document.getElementById("glowSlider").value);
+     // ---- Note names ----
+     const noteStrings = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
-// ---- Note names ----
-const noteStrings = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+     // ---- Slider events ----
+     document.getElementById("pitchAlphaSlider").addEventListener("input", e => {
+         pitchAlpha = parseFloat(e.target.value);
+         document.getElementById("pitchAlphaValue").textContent = pitchAlpha.toFixed(2);
+     });
+     document.getElementById("centsAlphaSlider").addEventListener("input", e => {
+         centsAlpha = parseFloat(e.target.value);
+         document.getElementById("centsAlphaValue").textContent = centsAlpha.toFixed(2);
+     });
+     document.getElementById("glowSlider").addEventListener("input", e => {
+         glowAmount = parseInt(e.target.value);
+         document.getElementById("glowValue").textContent = glowAmount;
+     });
 
-// ---- Slider events ----
-document.getElementById("pitchAlphaSlider").addEventListener("input", e => {
-  pitchAlpha = parseFloat(e.target.value);
-  document.getElementById("pitchAlphaValue").textContent = pitchAlpha.toFixed(2);
-});
-document.getElementById("centsAlphaSlider").addEventListener("input", e => {
-  centsAlpha = parseFloat(e.target.value);
-  document.getElementById("centsAlphaValue").textContent = centsAlpha.toFixed(2);
-});
-document.getElementById("glowSlider").addEventListener("input", e => {
-  glowAmount = parseInt(e.target.value);
-  document.getElementById("glowValue").textContent = glowAmount;
-});
+     // ---- Yin pitch detection (with sub-sample interpolation) ----
+     function yinDetector(buf, sampleRate) {
+         const threshold = 0.1;
+         const maxLag = Math.floor(buf.length/2);
+         const yinBuffer = new Float32Array(maxLag);
+         let minTau = -1;
 
-// ---- Yin pitch detection (with sub-sample interpolation) ----
-function yinDetector(buf, sampleRate) {
-  const threshold = 0.1;
-  const maxLag = Math.floor(buf.length/2);
-  const yinBuffer = new Float32Array(maxLag);
-  let minTau = -1;
+         for (let tau=1; tau<maxLag; tau++){
+             let sum=0;
+             for (let i=0; i<maxLag; i++){
+                 const delta = buf[i]-buf[i+tau];
+                 sum += delta*delta;
+             }
+             yinBuffer[tau]=sum;
+         }
+         yinBuffer[0]=1;
 
-  for (let tau=1; tau<maxLag; tau++){
-    let sum=0;
-    for (let i=0; i<maxLag; i++){
-      const delta = buf[i]-buf[i+tau];
-      sum += delta*delta;
-    }
-    yinBuffer[tau]=sum;
-  }
-  yinBuffer[0]=1;
+         let runningSum=0;
+         for (let tau=1; tau<maxLag; tau++){
+             runningSum += yinBuffer[tau];
+             yinBuffer[tau] *= tau/runningSum;
+         }
 
-  let runningSum=0;
-  for (let tau=1; tau<maxLag; tau++){
-    runningSum += yinBuffer[tau];
-    yinBuffer[tau] *= tau/runningSum;
-  }
+         for (let tau=2; tau<maxLag; tau++){
+             if(yinBuffer[tau]<threshold){
+                 while(tau+1<maxLag && yinBuffer[tau+1]<yinBuffer[tau]) tau++;
+                 minTau = tau;
+                 break;
+             }
+         }
+         if(minTau==-1) return -1;
 
-  for (let tau=2; tau<maxLag; tau++){
-    if(yinBuffer[tau]<threshold){
-      while(tau+1<maxLag && yinBuffer[tau+1]<yinBuffer[tau]) tau++;
-      minTau = tau;
-      break;
-    }
-  }
-  if(minTau==-1) return -1;
+         if(minTau>0 && minTau<maxLag-1){
+             const y0=yinBuffer[minTau-1], y1=yinBuffer[minTau], y2=yinBuffer[minTau+1];
+             const delta = (y0 - y2)/(2*(y0 - 2*y1 + y2));
+             return sampleRate/(minTau + delta);
+         }
+         return sampleRate/minTau;
+     }
 
-  if(minTau>0 && minTau<maxLag-1){
-    const y0=yinBuffer[minTau-1], y1=yinBuffer[minTau], y2=yinBuffer[minTau+1];
-    const delta = (y0 - y2)/(2*(y0 - 2*y1 + y2));
-    return sampleRate/(minTau + delta);
-  }
-  return sampleRate/minTau;
-}
+     // ---- Note / cents conversion ----
+     function noteFromPitch(f) { return Math.round(12*Math.log2(f/440))+69; }
+     function centsOffFromPitch(f,note){ return 1200*Math.log2(f/(440*Math.pow(2,(note-69)/12))); }
 
-// ---- Note / cents conversion ----
-function noteFromPitch(f) { return Math.round(12*Math.log2(f/440))+69; }
-function centsOffFromPitch(f,note){ return 1200*Math.log2(f/(440*Math.pow(2,(note-69)/12))); }
+     // ---- Make the cents graph the same height as the note name
+     function resizeCentsCanvasToNote() {
+         const noteElem = document.getElementById("noteName");
+         const centsCanvas = document.getElementById("centsCanvas");
 
-// ---- Make the cents graph the same height as the note name
-function resizeCentsCanvasToNote() {
-  const noteElem = document.getElementById("noteName");
-  const centsCanvas = document.getElementById("centsCanvas");
+         const noteHeight = noteElem.offsetHeight;
+         const centsCanvasHeight = noteHeight;
+         centsCanvas.style.height = centsCanvasHeight + "px";
+         centsCanvas.height = centsCanvasHeight; // important: update drawing buffer too
+     }
 
-  const noteHeight = noteElem.offsetHeight;
-  const centsCanvasHeight = noteHeight;
-  centsCanvas.style.height = centsCanvasHeight + "px";
-  centsCanvas.height = centsCanvasHeight; // important: update drawing buffer too
-}
+     // Call it once and whenever the window resizes
+     window.addEventListener("resize", resizeCentsCanvasToNote);
 
-// Call it once and whenever the window resizes
-window.addEventListener("resize", resizeCentsCanvasToNote);
+     // ---- Responsive canvases ----
+     function resizeCanvases(){
+         const w = wrapper.clientWidth;
+         waveCanvas.width = w;
+         centsCanvas.width = w;
+         resizeCentsCanvasToNote();
+     }
+     window.addEventListener('resize', resizeCanvases);
+     resizeCanvases();
 
-// ---- Responsive canvases ----
-function resizeCanvases(){
-  const w = wrapper.clientWidth;
-  waveCanvas.width = w;
-  centsCanvas.width = w;
-  resizeCentsCanvasToNote();
-}
-window.addEventListener('resize', resizeCanvases);
-resizeCanvases();
+     // ---- Draw waveform ----
+     function drawWaveform(data){
+         if(!showWaveform.checked) return;
+         const w=waveCanvas.width, h=waveCanvas.height;
+         waveCtx.clearRect(0,0,w,h);
+         waveCtx.save();
+         waveCtx.shadowBlur = glowAmount;
+         waveCtx.shadowColor = "lime";
+         waveCtx.strokeStyle="lime";
+         waveCtx.beginPath();
+         for(let i=0;i<data.length;i++){
+             const y=(0.5-data[i]/2)*h;
+             const x=i*w/data.length;
+             if(i===0) waveCtx.moveTo(x,y); else waveCtx.lineTo(x,y);
+         }
+         waveCtx.stroke();
+         waveCtx.restore();
+     }
 
-// ---- Draw waveform ----
-function drawWaveform(data){
-  if(!showWaveform.checked) return;
-  const w=waveCanvas.width, h=waveCanvas.height;
-  waveCtx.clearRect(0,0,w,h);
-  waveCtx.save();
-  waveCtx.shadowBlur = glowAmount;
-  waveCtx.shadowColor = "lime";
-  waveCtx.strokeStyle="lime";
-  waveCtx.beginPath();
-  for(let i=0;i<data.length;i++){
-    const y=(0.5-data[i]/2)*h;
-    const x=i*w/data.length;
-    if(i===0) waveCtx.moveTo(x,y); else waveCtx.lineTo(x,y);
-  }
-  waveCtx.stroke();
-  waveCtx.restore();
-}
+     // ---- Draw cents graph ----
+     function drawCents(cents){
+         const w = centsCanvas.width, h = centsCanvas.height;
+         centsCtx.clearRect(0,0,w,h);
 
-// ---- Draw cents graph ----
-function drawCents(cents){
-  const w = centsCanvas.width, h = centsCanvas.height;
-  centsCtx.clearRect(0,0,w,h);
+         // Define 5 bands
+         const bands = [
+             {min:-50, max:-25, color:'red'},
+             {min:-25, max:-5, color:'yellow'},
+             {min:-5, max:5, color:'green'},
+             {min:5, max:25, color:'yellow'},
+             {min:25, max:50, color:'red'}
+         ];
 
-  // Define 5 bands
-  const bands = [
-    {min:-50, max:-25, color:'red'},
-    {min:-25, max:-5, color:'yellow'},
-    {min:-5, max:5, color:'green'},
-    {min:5, max:25, color:'yellow'},
-    {min:25, max:50, color:'red'}
-  ];
+         bands.forEach(b => {
+             let color = b.color;
+             let alpha = 0.4;
+             if(cents >= b.min && cents <= b.max){
+                 alpha = 1.0;
+                 if(b.color === 'green') color = 'lime';
+             }
+             centsCtx.globalAlpha = alpha;
+             const x = w/2 + b.min * w/100;
+             const width = (b.max - b.min) * w/100;
+             centsCtx.fillStyle = color;
+             centsCtx.fillRect(x, 0, width, h);
+         });
+         centsCtx.globalAlpha = 1.0;
 
-  bands.forEach(b => {
-    let color = b.color;
-    let alpha = 0.4;
-    if(cents >= b.min && cents <= b.max){
-      alpha = 1.0;
-      if(b.color === 'green') color = 'lime';
-    }
-    centsCtx.globalAlpha = alpha;
-    const x = w/2 + b.min * w/100;
-    const width = (b.max - b.min) * w/100;
-    centsCtx.fillStyle = color;
-    centsCtx.fillRect(x, 0, width, h);
-  });
-  centsCtx.globalAlpha = 1.0;
+         const halfCent = (w / 100) / 2;
+         centsCtx.lineWidth = halfCent * 4;
+         centsCtx.strokeStyle = "rgba(255,255,255,0.2)";
+         centsCtx.beginPath();
+         centsCtx.moveTo(w/2, 0);
+         centsCtx.lineTo(w/2, h);
+         centsCtx.stroke();
 
-  const halfCent = (w / 100) / 2;
-  centsCtx.lineWidth = halfCent * 4;
-  centsCtx.strokeStyle = "rgba(255,255,255,0.2)";
-  centsCtx.beginPath();
-  centsCtx.moveTo(w/2, 0);
-  centsCtx.lineTo(w/2, h);
-  centsCtx.stroke();
+         centsCtx.lineWidth = halfCent;
+         centsCtx.strokeStyle = "#fff";
+         centsCtx.beginPath();
+         centsCtx.moveTo(w/2, 0);
+         centsCtx.lineTo(w/2, h);
+         centsCtx.stroke();
 
-  centsCtx.lineWidth = halfCent;
-  centsCtx.strokeStyle = "#fff";
-  centsCtx.beginPath();
-  centsCtx.moveTo(w/2, 0);
-  centsCtx.lineTo(w/2, h);
-  centsCtx.stroke();
+         const xNeedle = w/2 + cents * w/100;
+         centsCtx.strokeStyle = "#000";
+         centsCtx.lineWidth = halfCent;
+         centsCtx.beginPath();
+         centsCtx.moveTo(xNeedle, 0);
+         centsCtx.lineTo(xNeedle, h);
+         centsCtx.stroke();
 
-  const xNeedle = w/2 + cents * w/100;
-  centsCtx.strokeStyle = "#000";
-  centsCtx.lineWidth = halfCent;
-  centsCtx.beginPath();
-  centsCtx.moveTo(xNeedle, 0);
-  centsCtx.lineTo(xNeedle, h);
-  centsCtx.stroke();
+         centsCtx.lineWidth = 1;
+     }
 
-  centsCtx.lineWidth = 1;
-}
+     // ---- Update pitch display ----
+     function updatePitchDisplay(detectedPitch){
+         if(detectedPitch<=0) {
+             noteElem.textContent = "C4";
+             if(showCentsText.checked) centsText.textContent = `(0¢)`;
+             drawCents(0);
+         } else {
+             smoothedPitch = pitchAlpha*detectedPitch + (1-pitchAlpha)*smoothedPitch;
 
-// ---- Update pitch display ----
-function updatePitchDisplay(detectedPitch){
-    if(detectedPitch<=0) {
-      noteElem.textContent = "C4";
-      if(showCentsText.checked) centsText.textContent = `(0¢)`;
-      drawCents(0);
-    } else {
-      smoothedPitch = pitchAlpha*detectedPitch + (1-pitchAlpha)*smoothedPitch;
+             const note = noteFromPitch(smoothedPitch);
+             const rawCents = centsOffFromPitch(smoothedPitch,note);
 
-      const note = noteFromPitch(smoothedPitch);
-      const rawCents = centsOffFromPitch(smoothedPitch,note);
+             smoothedCents = centsAlpha*rawCents + (1-centsAlpha)*smoothedCents;
 
-      smoothedCents = centsAlpha*rawCents + (1-centsAlpha)*smoothedCents;
+             noteElem.textContent = `${noteStrings[note%12]}${Math.floor(note/12)-1}`;
+             if(showCentsText.checked) centsText.textContent = `(${smoothedCents.toFixed(1)}¢)`;
+             else centsText.textContent = '';
+             drawCents(smoothedCents);
+         }
+     }
 
-      noteElem.textContent = `${noteStrings[note%12]}${Math.floor(note/12)-1}`;
-      if(showCentsText.checked) centsText.textContent = `(${smoothedCents.toFixed(1)}¢)`;
-      else centsText.textContent = '';
-      drawCents(smoothedCents);
-    }
-}
+     // ---- Microphone setup ----
+     navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+         const audioCtx = new AudioContext();
+         const source = audioCtx.createMediaStreamSource(stream);
+         const processor = audioCtx.createScriptProcessor(2048,1,1);
 
-// ---- Microphone setup ----
-navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-  const audioCtx = new AudioContext();
-  const source = audioCtx.createMediaStreamSource(stream);
-  const processor = audioCtx.createScriptProcessor(2048,1,1);
+         source.connect(processor);
+         processor.connect(audioCtx.destination);
 
-  source.connect(processor);
-  processor.connect(audioCtx.destination);
+         processor.onaudioprocess = e => {
+             const buf = e.inputBuffer.getChannelData(0);
+             drawWaveform(buf);
+             const pitch = yinDetector(buf,audioCtx.sampleRate);
+             updatePitchDisplay(pitch);
+         };
+     }).catch(err=>console.log("Microphone error:",err));
 
-  processor.onaudioprocess = e => {
-    const buf = e.inputBuffer.getChannelData(0);
-    drawWaveform(buf);
-    const pitch = yinDetector(buf,audioCtx.sampleRate);
-    updatePitchDisplay(pitch);
-  };
-}).catch(err=>console.log("Microphone error:",err));
+     // ---- Settings toggle logic ----
+     const settingsToggle = document.getElementById("settingsToggle");
+     const settingsPanel = document.getElementById("settingsPanel");
 
-// ---- Settings toggle logic ----
-const settingsToggle = document.getElementById("settingsToggle");
-const settingsPanel = document.getElementById("settingsPanel");
+     settingsToggle.addEventListener("click", () => {
+         if (settingsPanel.style.display === "none") {
+             settingsPanel.style.display = "block";
+             settingsToggle.textContent = "Settings ▼";
+         } else {
+             settingsPanel.style.display = "none";
+             settingsToggle.textContent = "Settings ▶";
+         }
+     });
+    </script>
 
-settingsToggle.addEventListener("click", () => {
-  if (settingsPanel.style.display === "none") {
-    settingsPanel.style.display = "block";
-    settingsToggle.textContent = "Settings ▼";
-  } else {
-    settingsPanel.style.display = "none";
-    settingsToggle.textContent = "Settings ▶";
-  }
-});
-</script>
-
-</body>
+  </body>
 </html>

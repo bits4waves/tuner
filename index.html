@@ -310,12 +310,8 @@
      }
 
      function drawPitchHistory(){
-         if (!showHistoryGraph.checked) {
-             pitchHistoryCanvas.style.display = "none"; // hide completely
-             return;
-         } else {
-             pitchHistoryCanvas.style.display = "block"; // show again
-         }
+         const isVisible = handleElementVisibility(pitchHistoryCanvas, showHistoryGraph);
+         if (!isVisible) return;
 
          const w = pitchHistoryCanvas.width;
          const h = pitchHistoryCanvas.height;

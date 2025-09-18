@@ -190,7 +190,7 @@
      resizeCanvases();
 
      // ---- Control canvas visibility with its checkbox
-     function handleCanvasVisibility(canvas, checkbox) {
+     function handleElementVisibility(canvas, checkbox) {
          if (checkbox.checked) {
              canvas.style.display = "block";
              return true;
@@ -202,7 +202,7 @@
 
      // ---- Draw waveform ----
      function drawWaveform(data){
-         if(!handleCanvasVisibility(waveCanvas, showWaveform)) return;
+         if(!handleElementVisibility(waveCanvas, showWaveform)) return;
 
          const w=waveCanvas.width, h=waveCanvas.height;
          waveCtx.clearRect(0,0,w,h);

@@ -191,7 +191,12 @@
 
      // ---- Draw waveform ----
      function drawWaveform(data){
-         if(!showWaveform.checked) return;
+         if(!showWaveform.checked){
+             waveCanvas.style.display = "none";
+             return;
+         } else {
+             waveCanvas.style.display = "block";
+         }
          const w=waveCanvas.width, h=waveCanvas.height;
          waveCtx.clearRect(0,0,w,h);
          waveCtx.save();

@@ -291,6 +291,42 @@
          }
      }
 
+     function drawPitchHistory(){
+         const w = pitchHistoryCanvas.width;
+         const h = pitchHistoryCanvas.height;
+         pitchHistoryCtx.clearRect(0, 0, w, h);
+
+         // Determine min and max pitch for scaling
+         let minPitch = Math.min(...pitchHistory.filter(p => p > 0)) || 100;
+         let maxPitch = Math.max(...pitchHistory) || 1000;
+
+         // Draw pitch trace
+         pitchHistoryCtx.strokeStyle = 'lime';
+         pitchHistoryCtx.lineWidth = 2;
+         pitchHistoryCtx.beginPath();
+
+         for(let i = 0; i < pitchHistory.length; i++){
+             const x = (i / maxHistoryLength) * w;
+             const p = pitchHistory[i] > 0 ? pitchHistory[i] : minPitch;
+             const y = h - ((p - minPitch) / (maxPitch - minPitch)) * h;
+             if(i === 0) pitchHistoryCtx.moveTo(x, y);
+             else pitchHistoryCtx.lineTo(x, y);
+         }
+         pitchHistoryCtx.stroke();
+
+         // Optional reference lines for standard notes
+         const referenceFreqs = [220, 440, 880]; // example: A3, A4, A5
+         pitchHistoryCtx.strokeStyle = '#444';
+         pitchHistoryCtx.lineWidth = 1;
+         referenceFreqs.forEach(freq => {
+             const y = h - ((freq - minPitch) / (maxPitch - minPitch)) * h;
+             pitchHistoryCtx.beginPath();
+             pitchHistoryCtx.moveTo(0, y);
+             pitchHistoryCtx.lineTo(w, y);
+             pitchHistoryCtx.stroke();
+         });
+     }
+
      // ---- Microphone setup ----
      navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
          const audioCtx = new AudioContext();

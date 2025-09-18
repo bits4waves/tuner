@@ -97,6 +97,10 @@
      let smoothedPitch = 0;
      let smoothedCents = 0;
 
+     // ---- Pitch History Variables
+     const maxHistoryLength = 500;           // number of points visible in the history
+     let pitchHistory = new Array(maxHistoryLength).fill(0);
+
      // ---- Glow control ----
      let glowAmount = parseInt(document.getElementById("glowSlider").value);
 

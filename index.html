@@ -189,6 +189,17 @@
      window.addEventListener('resize', resizeCanvases);
      resizeCanvases();
 
+     // ---- Control canvas visibility with its checkbox
+     function handleCanvasVisibility(canvas, checkbox) {
+         if (checkbox.checked) {
+             canvas.style.display = "block";
+             return true;
+         } else {
+             canvas.style.display = "none";
+             return false;
+         }
+     }
+
      // ---- Draw waveform ----
      function drawWaveform(data){
          if(!showWaveform.checked){

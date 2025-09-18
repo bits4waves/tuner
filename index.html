@@ -313,10 +313,11 @@
          }
          pitchHistoryCtx.stroke();
 
-         // Optional reference lines for standard notes
-         const referenceFreqs = [220, 440, 880]; // example: A3, A4, A5
+         // Optional: draw reference lines for current pitch and ±0.5 octave
          pitchHistoryCtx.strokeStyle = '#444';
          pitchHistoryCtx.lineWidth = 1;
+
+         const referenceFreqs = [currentPitch / halfOctave, currentPitch, currentPitch * halfOctave];
          referenceFreqs.forEach(freq => {
              const y = h - ((freq - minPitch) / (maxPitch - minPitch)) * h;
              pitchHistoryCtx.beginPath();

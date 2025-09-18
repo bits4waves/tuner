@@ -71,6 +71,7 @@
         <label><input type="checkbox" id="showWaveform" checked> Show Waveform</label>
         <label><input type="checkbox" id="showCentsText"> Show Cents Text</label>
         <label><input type="checkbox" id="showCentsGraph" checked> Show Cents Graph</label>
+        <label><input type="checkbox" id="showHistoryGraph" checked> Show Pitch History</label>
       </div>
     </div>
 
@@ -90,6 +91,7 @@
      const showWaveform = document.getElementById('showWaveform');
      const showCentsText = document.getElementById('showCentsText');
      const showCentsGraph = document.getElementById('showCentsGraph');
+     const showHistoryGraph = document.getElementById('showHistoryGraph');
 
      // ---- EMA variables ----
      let pitchAlpha = parseFloat(document.getElementById("pitchAlphaSlider").value);

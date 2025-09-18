@@ -176,18 +176,13 @@
          centsCanvas.height = centsCanvasHeight; // important: update drawing buffer too
      }
 
-     function resizePitchHistoryCanvas(){
-         pitchHistoryCanvas.width = wrapper.clientWidth * 0.95;
-     }
-     window.addEventListener('resize', resizePitchHistoryCanvas);
-
      // ---- Responsive canvases ----
      function resizeCanvases(){
          const w = wrapper.clientWidth;
          waveCanvas.width = w;
          centsCanvas.width = w;
+         pitchHistoryCanvas.width = w;
          resizeCentsCanvasToNote();
-         resizePitchHistoryCanvas();
      }
      window.addEventListener('resize', resizeCanvases);
      resizeCanvases();

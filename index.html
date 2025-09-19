@@ -202,7 +202,8 @@
 
      // ---- Draw waveform ----
      function drawWaveform(data){
-         if(!handleElementVisibility(waveCanvas, showWaveform)) return;
+         const isVisible = handleElementVisibility(waveCanvas, showWaveform);
+         if(!isVisible) return;
 
          const w=waveCanvas.width, h=waveCanvas.height;
          waveCtx.clearRect(0,0,w,h);
@@ -283,9 +284,8 @@
          if(detectedPitch<=0) {
              noteElem.textContent = "A4";
 
-             if(handleElementVisibility(centsText, showCentsText)) {
-                 centsText.textContent = `(0¢)`;
-             }
+             const isVisible = handleElementVisibility(centsText, showCentsText);
+             if(isVisible) centsText.textContent = `(0¢)`;
 
              drawCents(0);
          } else {
@@ -298,9 +298,8 @@
 
              noteElem.textContent = `${noteStrings[note%12]}${Math.floor(note/12)-1}`;
 
-             if(handleElementVisibility(centsText, showCentsText)) {
-                 centsText.textContent = `(${smoothedCents.toFixed(1)}¢)`
-             }
+             const isVisible = handleElementVisibility(centsText, showCentsText);
+             if(isVisible) centsText.textContent = `(${smoothedCents.toFixed(1)}¢)`;
 
              drawCents(smoothedCents);
          }

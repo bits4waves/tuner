@@ -86,7 +86,7 @@
      const pitchHistoryCanvas = document.getElementById('historyCanvas');
      const pitchHistoryCtx = pitchHistoryCanvas.getContext('2d');
 
-     const noteElem = document.getElementById('noteName');
+     const noteName = document.getElementById('noteName');
      const centsText = document.getElementById('centsText');
 
      const showNoteName = document.getElementById('showNoteName');
@@ -171,10 +171,10 @@
 
      // ---- Make the cents graph the same height as the note name
      function resizeCentsCanvasToNote() {
-         const noteElem = document.getElementById("noteName");
+         const noteName = document.getElementById("noteName");
          const centsCanvas = document.getElementById("centsCanvas");
 
-         const noteHeight = noteElem.offsetHeight;
+         const noteHeight = noteName.offsetHeight;
          const centsCanvasHeight = noteHeight;
          centsCanvas.style.height = centsCanvasHeight + "px";
          centsCanvas.height = centsCanvasHeight; // important: update drawing buffer too
@@ -284,7 +284,7 @@
      // ---- Update pitch display ----
      function updatePitchDisplay(detectedPitch){
          if(detectedPitch<=0) {
-             noteElem.textContent = "A4";
+             noteName.textContent = "A4";
 
              const isVisible = handleElementVisibility(centsText, showCentsText);
              if(isVisible) centsText.textContent = `(0¢)`;
@@ -298,7 +298,7 @@
 
              smoothedCents = centsAlpha*rawCents + (1-centsAlpha)*smoothedCents;
 
-             noteElem.textContent = `${noteStrings[note%12]}${Math.floor(note/12)-1}`;
+             noteName.textContent = `${noteStrings[note%12]}${Math.floor(note/12)-1}`;
 
              const isVisible = handleElementVisibility(centsText, showCentsText);
              if(isVisible) centsText.textContent = `(${smoothedCents.toFixed(1)}¢)`;

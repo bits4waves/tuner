@@ -222,6 +222,9 @@
 
      // ---- Draw cents graph ----
      function drawCents(cents){
+         const isVisible = handleElementVisibility(centsCanvas, showCentsGraph);
+         if (!isVisible) return;
+
          const w = centsCanvas.width, h = centsCanvas.height;
          centsCtx.clearRect(0,0,w,h);
 

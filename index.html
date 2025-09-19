@@ -41,10 +41,10 @@
     <div class="wrapper">
       <!-- Display elements -->
       <div>
-        <span id="noteName"></span>
+        <span id="noteName">--</span>
       </div>
       <div>
-        <span id="centsText">(0¢)</span>
+        <span id="centsText">(--¢)</span>
       </div>
 
       <!-- Canvases -->
@@ -285,12 +285,12 @@
      function updatePitchDisplay(detectedPitch){
          if(detectedPitch<=0) {
              const isNoteNameVisible = handleElementVisibility(noteName, showNoteName);
-             if (isNoteNameVisible) noteName.textContent = "A4";
+             if (isNoteNameVisible) noteName.textContent = "--";
 
              const isCentsTextVisible = handleElementVisibility(centsText, showCentsText);
-             if(isCentsTextVisible) centsText.textContent = `(0¢)`;
 
              drawCents(0);
+             if(isCentsTextVisible) centsText.textContent = `(--¢)`;
          } else {
              smoothedPitch = pitchAlpha*detectedPitch + (1-pitchAlpha)*smoothedPitch;
 

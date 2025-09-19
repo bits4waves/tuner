@@ -134,7 +134,7 @@
 
          for (let tau=1; tau<maxLag; tau++){
              let sum=0;
-             for (let i=0; i<maxLag; i++){
+             for (let i=0; i<(buf.length - tau); i++){
                  const delta = buf[i]-buf[i+tau];
                  sum += delta*delta;
              }

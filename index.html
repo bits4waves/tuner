@@ -304,10 +304,11 @@
              if(isCentsTextVisible) centsText.textContent = `(${smoothedCents.toFixed(1)}¢)`;
 
              drawCents(smoothedCents);
+
+             // Store detected pitch in Hz
+             pitchHistory.push(detectedPitch);
+             if(pitchHistory.length > maxHistoryLength) pitchHistory.shift();
          }
-         // Store detected pitch in Hz
-         pitchHistory.push(detectedPitch > 0 ? detectedPitch : 0);
-         if(pitchHistory.length > maxHistoryLength) pitchHistory.shift();
 
          // Draw the history graph
          drawPitchHistory();

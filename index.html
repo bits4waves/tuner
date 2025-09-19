@@ -288,8 +288,6 @@
              if (isNoteNameVisible) noteName.textContent = "--";
 
              const isCentsTextVisible = handleElementVisibility(centsText, showCentsText);
-
-             drawCents(0);
              if(isCentsTextVisible) centsText.textContent = `(--¢)`;
          } else {
              smoothedPitch = pitchAlpha*detectedPitch + (1-pitchAlpha)*smoothedPitch;
